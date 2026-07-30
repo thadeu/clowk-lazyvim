@@ -7,7 +7,12 @@ background-opacity = 0.95
 background-blur = true
 
 # --- Typography ---
-font-family = "JetBrains Mono"
+# The Nerd Font variant is not optional: LazyVim's file icons, git signs and
+# diagnostics are all Nerd Font glyphs, and plain "JetBrains Mono" renders every
+# one of them as a tofu box. `... Mono` is the strictly monospaced cut, which
+# keeps the icons single-width so columns stay aligned.
+# brew install --cask font-jetbrains-mono-nerd-font
+font-family = "JetBrainsMono Nerd Font Mono"
 font-size = 14
 font-thicken = true
 
@@ -26,6 +31,10 @@ cursor-style = block
 mouse-hide-while-typing = true
 mouse-scroll-multiplier = 2.0
 
+# Everything between the two markers below is what setup/install.sh copies into
+# an existing Ghostty config. Keep the markers intact.
+
+# >>> clowk-lazyvim keybinds >>>
 # --- Keybinds: forward VSCode's cmd+ shortcuts to Neovim ---
 # `esc:X` sends ESC+X, which Neovim reads as <M-X>.
 #
@@ -52,9 +61,20 @@ keybind = super+three=esc:3
 keybind = super+four=esc:4
 keybind = super+five=esc:5
 
+# The lines above bind the *unicode* trigger (super+1). Ghostty also ships
+# defaults on the *physical* key (super+digit_1=goto_tab:1), and the two coexist
+# in `ghostty +show-config`. Without overriding the physical ones too, cmd+1..5
+# can switch the Ghostty tab instead of reaching Neovim.
+# Ghostty tab switching stays on super+shift+[ and super+shift+].
+keybind = super+digit_1=esc:1
+keybind = super+digit_2=esc:2
+keybind = super+digit_3=esc:3
+keybind = super+digit_4=esc:4
+keybind = super+digit_5=esc:5
+
 # --- Ghostty's own actions, moved out of the way (one key, one owner) ---
 # was super+w
 keybind = super+shift+w=close_surface
 # was super+n
 keybind = super+shift+n=new_window
-# switching Ghostty tabs stays on the defaults: super+shift+[ and super+shift+]
+# <<< clowk-lazyvim keybinds <<<

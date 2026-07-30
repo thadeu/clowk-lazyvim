@@ -6,6 +6,7 @@ debug
 foo.*
 *.log
 data
+.DS_Store
 
 # Machine-local overrides -- see README.
 # Any lua/plugins/local-*.lua is auto-imported by lazy but never tracked.

@@ -6,20 +6,59 @@ Neovim. Built for macOS with [Ghostty](https://ghostty.org) as the terminal.
 Language stacks wired up: TypeScript (React/Vite, Node/Express, Prisma,
 Tailwind) and Ruby on Rails, plus Docker, YAML and JSON.
 
+![Neovim with this config: file explorer on the left, three buffer tabs, and two
+vertical splits each carrying its own breadcrumb in the winbar](images/lazyvim.png)
+
+The breadcrumb at the top of each split (`lua › config › keymaps.lua`) is
+`dropbar.nvim`, and it is per window — both sides of a split get their own. The
+colours are `clowk-night`, matching the Ghostty theme in `setup/ghostty/`.
+
+## Install
+
+```sh
+git clone https://github.com/thadeu/clowk-lazyvim.git ~/code/clowk-lazyvim
+~/code/clowk-lazyvim/setup/install.sh
+```
+
+That is the whole thing. The script is idempotent — re-run it any time — and it:
+
+1. installs the Homebrew dependencies that are missing, and only those
+2. refuses to continue on Neovim < 0.11, and warns when `node` or `gem` is
+   absent, since mason needs them and says so in neither case
+3. symlinks `~/.config/nvim` to the clone, moving an existing config (plus its
+   plugin and mason state) to `~/.config/nvim-backup-<timestamp>`
+4. installs the plugins at the commits in `lazy-lock.json`
+5. installs the language servers and **waits** for them (see `setup/mason.lua`)
+6. installs the Ghostty config, merging into an existing one instead of
+   clobbering it, and validates the result
+
+`--minimal` skips the optional tools. The only manual step left is
+`gh auth login`, which is interactive.
+
+Verify a server actually attached by opening a file and pressing `<leader>cl`.
+
 ## Dependencies
+
+The script installs all of these; the list is here so you know what each one
+buys you.
 
 Required:
 
 ```sh
 brew install neovim ripgrep fd
-brew install --cask ghostty font-jetbrains-mono
+brew install --cask ghostty font-jetbrains-mono-nerd-font
 ```
 
-- **neovim** 0.10+ (developed on 0.12)
+- **neovim** 0.11+ — `dropbar.nvim` (the breadcrumb) requires it, and the
+  bundled `nvim-treesitter` is the `main` branch. Developed on 0.12.
 - **ripgrep** and **fd** — the LazyVim picker uses them for grep and file
   search. Without them `<leader><space>` and `<leader>/` are slow or empty.
 - **ghostty** — the `cmd+` shortcuts depend on its `esc:` keybind action.
   Everything else works in any terminal.
+- **font-jetbrains-mono-nerd-font** — the *Nerd Font* build, not
+  `font-jetbrains-mono`. LazyVim's file icons, git signs and diagnostics are all
+  Nerd Font glyphs, and the plain family renders every one of them as a tofu
+  box. Any other Nerd Font works too; set it in the Ghostty config.
 
 Optional, each unlocking one feature:
 
@@ -46,48 +85,40 @@ on demand, but two of them need a runtime on your host:
   `ruby`/`gem` on PATH mason fails to install them, and the error message does
   not mention Ruby at all.
 
-## How to install
+## Installing by hand
+
+The same steps without the script. The order matters: mason cannot install
+anything before lazy has cloned it.
 
 ```sh
-git clone <this-repo> ~/.config/nvim
-nvim
-```
+git clone https://github.com/thadeu/clowk-lazyvim.git ~/code/clowk-lazyvim
+ln -s ~/code/clowk-lazyvim ~/.config/nvim
 
-lazy.nvim bootstraps itself on the first start. To get the exact plugin commits
-from `lazy-lock.json` instead of the latest versions:
-
-```sh
 nvim --headless "+Lazy! restore" +qa
+nvim --headless -c "luafile $HOME/.config/nvim/setup/mason.lua"
 ```
 
-Then install the Ghostty config, which is what makes the `cmd+` shortcuts reach
-the editor:
+Then the Ghostty config, which is what makes the `cmd+` shortcuts reach the
+editor. **On macOS the file that wins is the one under Application Support**,
+not `~/.config/ghostty` — see the notes at the bottom:
 
 ```sh
-cp -r ~/.config/nvim/setup/ghostty ~/.config/ghostty
+GHOSTTY="$HOME/Library/Application Support/com.mitchellh.ghostty"
+
+mkdir -p "$GHOSTTY/themes"
+cp ~/.config/nvim/setup/ghostty/themes/clowk-night "$GHOSTTY/themes/"
+cp ~/.config/nvim/setup/ghostty/config "$GHOSTTY/config"
 ```
+
+That last line replaces any Ghostty config you already have. To keep yours,
+append only the block between the `clowk-lazyvim keybinds` markers of
+`setup/ghostty/config` — which is what `setup/install.sh` does.
 
 Restart Ghostty, or press `cmd+shift+,` to reload its config.
 
-Language servers for the stacks you care about:
-
-```sh
-nvim --headless "+MasonInstall vtsls tailwindcss-language-server prisma-language-server json-lsp" +qa
-nvim --headless "+MasonInstall dockerfile-language-server docker-compose-language-service hadolint yaml-language-server" +qa
-nvim --headless "+MasonInstall ruby-lsp erb-formatter erb-lint" +qa   # needs host Ruby
-```
-
-Verify a server actually attached by opening a file and pressing `<leader>cl`.
-
-### Prefer the repo somewhere else
-
-If you would rather keep the repo alongside your other projects, clone it there
-and symlink:
-
-```sh
-git clone <this-repo> ~/code/nvim-config
-ln -s ~/code/nvim-config ~/.config/nvim
-```
+Do **not** reach for `nvim --headless "+MasonInstall ..." +qa`, the obvious
+command: it fails twice over, and `setup/mason.lua` exists to work around both.
+See the notes at the bottom.
 
 ## Shortcuts
 
@@ -234,6 +265,34 @@ comment along with the key. Named actions like `close_surface` raise
 `InvalidAction`, which is what exposes the problem. Keep comments on their own
 line.
 
+**On macOS, `~/.config/ghostty/config` loses to Application Support.**
+Ghostty reads `~/Library/Application Support/com.mitchellh.ghostty/config` after
+the XDG path, so the App Support file wins. Measured: with `font-size = 99` in
+`~/.config/ghostty/config` and `14` in App Support, `ghostty +show-config`
+answers `14`. Every guide tells you to install into `~/.config/ghostty`, and on
+any machine that has already opened Ghostty's own config editor that is a no-op
+you can stare at for a while.
+
+**`cmd+1..5` needs the physical key bound as well.**
+Ghostty ships defaults on the physical key (`super+digit_1=goto_tab:1`) that
+coexist with the unicode trigger (`super+1`) in `ghostty +show-config`. Binding
+only `super+one` leaves `cmd+1` able to switch the Ghostty tab instead of
+reaching Neovim, so `setup/ghostty/config` binds both.
+
+**`nvim --headless "+MasonInstall ..." +qa` does not work, in two ways.**
+First, `:MasonInstall` does not exist there — mason is lazy-loaded and the
+command only appears once the plugin loads, so nvim answers `E492: Not an editor
+command`. Second, even where the command does exist, `+qa` quits as soon as the
+jobs are spawned: mason prints "Neovim is exiting while packages are still
+installing" and leaves a half-populated directory that looks fine until a server
+silently fails to attach. `setup/mason.lua` drives the registry API instead and
+blocks on `pkg:is_installed()`.
+
+**nvim-treesitter `main` needs the `tree-sitter` CLI.**
+Without it no parser installs, and the only symptom is a health-check line
+(`❌ tree-sitter (CLI)`) you have to go looking for. It is in the
+`setup/mason.lua` list.
+
 **A key mapping has to exist in insert mode too.**
 If `<M-w>` only exists in normal mode, the `ESC+w` Ghostty sends matches nothing:
 the `ESC` leaves insert mode and `w` runs as a word motion. The `map_ni` helper
@@ -292,7 +351,10 @@ lua/plugins/
   harpoon.lua                 note on harpoon vs bufferline
   breadcrumb.lua              dropbar: VSCode-style path in the winbar
   colorscheme.lua
-setup/ghostty/                terminal config: cmd+ keybinds, theme, typography
+setup/
+  install.sh                  one-shot installer, idempotent
+  mason.lua                   installs the language servers and waits for them
+  ghostty/                    terminal config: cmd+ keybinds, theme, typography
 ```
 
 ## Out of scope
