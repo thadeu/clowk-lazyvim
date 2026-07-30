@@ -31,13 +31,6 @@ local PACKAGES = {
   "prisma-language-server",
   "json-lsp",
 
-  -- Ruby on Rails. These are gems: without ruby/gem on PATH they fail, and the
-  -- error message does not mention Ruby at all.
-  "ruby-lsp",
-  "rubocop",
-  "erb-formatter",
-  "erb-lint",
-
   -- Docker / YAML
   "dockerfile-language-server",
   "docker-compose-language-service",
@@ -55,6 +48,39 @@ local PACKAGES = {
   -- Shell, for editing setup/install.sh
   "shfmt",
 }
+
+-- These are gems, so they need a host Ruby -- and a recent one. Checking that
+-- `ruby` merely exists is not enough: macOS ships 2.6.10 with a working `gem`,
+-- and mason's failure on a machine like that never mentions Ruby at all.
+local RUBY_PACKAGES = {
+  "ruby-lsp",
+  "rubocop",
+  "erb-formatter",
+  "erb-lint",
+}
+
+local MIN_RUBY = "3.2.0"
+
+--- Host Ruby version as {major, minor, patch}, or nil when there is no ruby.
+local function ruby_version()
+  if vim.fn.executable("ruby") == 0 then
+    return nil
+  end
+
+  local out = vim.fn.system({ "ruby", "-e", "print RUBY_VERSION" })
+
+  return vim.v.shell_error == 0 and vim.version.parse(out) or nil
+end
+
+local host_ruby = ruby_version()
+
+if host_ruby and not vim.version.lt(host_ruby, MIN_RUBY) then
+  vim.list_extend(PACKAGES, RUBY_PACKAGES)
+elseif host_ruby then
+  print(("mason: SKIP ruby packages -- host ruby is %s, ruby-lsp needs %s+"):format(tostring(host_ruby), MIN_RUBY))
+else
+  print("mason: SKIP ruby packages -- no ruby on PATH")
+end
 
 local ok, registry = pcall(require, "mason-registry")
 

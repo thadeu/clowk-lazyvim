@@ -20,17 +20,30 @@ git clone https://github.com/thadeu/clowk-lazyvim.git ~/code/clowk-lazyvim
 ~/code/clowk-lazyvim/setup/install.sh
 ```
 
-That is the whole thing. The script is idempotent — re-run it any time — and it:
+Homebrew is the only thing you install yourself. The script is idempotent —
+re-run it any time — and it:
 
-1. installs the Homebrew dependencies that are missing, and only those
-2. refuses to continue on Neovim < 0.11, and warns when `node` or `gem` is
-   absent, since mason needs them and says so in neither case
+1. installs the missing Homebrew dependencies, and only those, upgrading
+   Neovim itself when it is below 0.11
+2. measures the Node and Ruby on your host and **skips** the stacks whose
+   runtime is too old, instead of failing halfway through
 3. symlinks `~/.config/nvim` to the clone, moving an existing config (plus its
    plugin and mason state) to `~/.config/nvim-backup-<timestamp>`
 4. installs the plugins at the commits in `lazy-lock.json`
 5. installs the language servers and **waits** for them (see `setup/mason.lua`)
 6. installs the Ghostty config, merging into an existing one instead of
    clobbering it, and validates the result
+
+It ends on a summary of what is live and what was skipped:
+
+```
+==> Summary
+    core         neovim 0.12.4, ripgrep, fd
+    typescript   node 24.13.0
+    rails        ruby 3.4.2
+    ghostty      present
+    nerd font    present
+```
 
 `--minimal` skips the optional tools. The only manual step left is
 `gh auth login`, which is interactive.
@@ -39,51 +52,48 @@ Verify a server actually attached by opening a file and pressing `<leader>cl`.
 
 ## Dependencies
 
-The script installs all of these; the list is here so you know what each one
-buys you.
+Three tiers, and the installer treats them differently. The distinction is the
+whole reason it can finish on a machine that has no Ruby.
 
-Required:
+### Core — a failure aborts the install
 
-```sh
-brew install neovim ripgrep fd
-brew install --cask ghostty font-jetbrains-mono-nerd-font
-```
+The config does not work without these, and the script installs them.
 
-- **neovim** 0.11+ — `dropbar.nvim` (the breadcrumb) requires it, and the
-  bundled `nvim-treesitter` is the `main` branch. Developed on 0.12.
-- **ripgrep** and **fd** — the LazyVim picker uses them for grep and file
-  search. Without them `<leader><space>` and `<leader>/` are slow or empty.
-- **ghostty** — the `cmd+` shortcuts depend on its `esc:` keybind action.
-  Everything else works in any terminal.
-- **font-jetbrains-mono-nerd-font** — the *Nerd Font* build, not
-  `font-jetbrains-mono`. LazyVim's file icons, git signs and diagnostics are all
-  Nerd Font glyphs, and the plain family renders every one of them as a tofu
-  box. Any other Nerd Font works too; set it in the Ghostty config.
+| | Why |
+| --- | --- |
+| **Homebrew** | the only thing you have to install yourself |
+| **neovim** 0.11+ | `dropbar.nvim` requires it, and the bundled `nvim-treesitter` is the `main` branch. The script upgrades an older Homebrew neovim on its own. Developed on 0.12 |
+| **ripgrep**, **fd** | the LazyVim picker greps and finds files with them. Without them `<leader><space>` and `<leader>/` are slow or empty |
 
-Optional, each unlocking one feature:
+### Stack — a failure skips that slice
 
-```sh
-brew install lazygit gh
-brew install mermaid-cli imagemagick
-```
+Each gates one part of the setup and is reported in the summary at the end.
+Install what you are missing and re-run the script to enable it later.
 
-- **lazygit** — `<leader>gg`. Commit graph, interactive rebase, stage-by-hunk.
-- **gh** — the PR/issue pickers and `octo.nvim`. Needs `gh auth login`.
-- **mermaid-cli** (`mmdc`) — renders Mermaid diagrams inline in markdown buffers.
-- **imagemagick** (`magick`) — inline images for svg, pdf and raster formats.
-  Not needed for Mermaid.
+| | Gates | Why the check is a version, not a presence test |
+| --- | --- | --- |
+| **node** 20+ | `vtsls`, tailwind, prisma, json | — |
+| **ruby** 3.2+ | `ruby-lsp`, `rubocop`, `erb-lint` | macOS ships ruby **2.6.10** with a working `gem`, so "is ruby installed" answers yes on a machine where none of these can install. mason's failure there never mentions Ruby |
+| **ghostty** | the `cmd+` shortcuts, via its `esc:` keybind action | everything else works in any terminal |
+| a **Nerd Font** | icons | LazyVim's file icons, git signs and diagnostics are Nerd Font glyphs; a plain family renders every one as a tofu box. The script installs `font-jetbrains-mono-nerd-font` — **not** `font-jetbrains-mono`, which is the cut without the glyphs — and accepts any Nerd Font you already have |
 
-Note that `brew install mermaid-cli` pulls Homebrew's `node` as a dependency. If
-you manage Node with fnm/asdf/mise, make sure your version manager still comes
-first on `PATH`.
+Node and Ruby are yours to manage: use fnm, mise, asdf, rbenv, whatever. The
+script only measures what it finds.
 
-Language servers are installed by [mason](https://github.com/mason-org/mason.nvim)
-on demand, but two of them need a runtime on your host:
+### Optional — a failure is a warning
 
-- **Node 20+** for `vtsls` (TypeScript). Any version manager works.
-- **A working Ruby** for `ruby-lsp` and `rubocop` — both are gems, so without
-  `ruby`/`gem` on PATH mason fails to install them, and the error message does
-  not mention Ruby at all.
+One feature each. `--minimal` skips them entirely.
+
+| | Unlocks |
+| --- | --- |
+| **lazygit** | `<leader>gg`. Commit graph, interactive rebase, stage-by-hunk |
+| **gh** | the PR/issue pickers and `octo.nvim`. Needs `gh auth login` |
+| **mermaid-cli** (`mmdc`) | Mermaid diagrams rendered inline in markdown buffers |
+| **imagemagick** (`magick`) | inline svg, pdf and raster images. Not needed for Mermaid |
+
+`brew install mermaid-cli` pulls Homebrew's `node` as a dependency. If you manage
+Node with fnm/asdf/mise, yours has to stay first on `PATH` — the script warns
+when it does not.
 
 ## Installing by hand
 

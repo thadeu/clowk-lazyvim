@@ -1,118 +1,184 @@
 #!/usr/bin/env bash
 #
-# One-shot installer for this config on a fresh macOS.
+# One-shot installer for this config on macOS.
 #
 #   ./setup/install.sh              everything, including the optional tools
-#   ./setup/install.sh --minimal    skip lazygit / gh / mermaid-cli / imagemagick
+#   ./setup/install.sh --minimal    skip the optional tools
 #
 # Safe to re-run: every step checks its own result first, and anything it would
 # overwrite is moved to ~/.config/nvim-backup-<timestamp> instead.
+#
+# Dependencies come in three tiers, and the script treats them differently:
+#
+#   CORE      Homebrew, neovim 0.11+, ripgrep, fd.
+#             The config does not work without them, so a failure here aborts.
+#
+#   STACK     node 20+ (TypeScript), ruby 3.2+ (Rails), a Nerd Font, Ghostty.
+#             Each one gates a slice of the setup. A missing one SKIPS that
+#             slice and is reported at the end -- it does not abort, because a
+#             machine that never touches Rails does not need Ruby.
+#
+#   OPTIONAL  lazygit, gh, mermaid-cli, imagemagick.
+#             One feature each. Failures are warnings.
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GHOSTTY_DIR="$HOME/Library/Application Support/com.mitchellh.ghostty"
 BACKUP="$HOME/.config/nvim-backup-$(date +%Y%m%d-%H%M%S)"
-MIN_NVIM="0.11.0"
-MINIMAL=0
 
+MIN_NVIM="0.11.0"
+MIN_NODE="20.0.0"
+MIN_RUBY="3.2.0"
+
+MINIMAL=0
 [[ "${1:-}" == "--minimal" ]] && MINIMAL=1
 
 step() { printf '\n\033[1;34m==>\033[0m \033[1m%s\033[0m\n' "$1"; }
 info() { printf '    %s\n' "$1"; }
-warn() { printf '\033[1;33m    warning:\033[0m %s\n' "$1"; }
+warn() { printf '\033[1;33m    skip:\033[0m %s\n' "$1"; }
 die() {
-  printf '\033[1;31m==> error:\033[0m %s\n' "$1" >&2
+  printf '\n\033[1;31m==> error:\033[0m %s\n' "$1" >&2
   exit 1
 }
 
+# version_lt A B -- true when A is strictly older than B. macOS ships bash 3.2,
+# so this is `sort -V` rather than anything fancier.
+version_lt() {
+  [[ "$1" != "$2" ]] && [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" == "$1" ]]
+}
+
+# What the run ends up supporting, reported in the summary.
+STACK_TS="skipped"
+STACK_RUBY="skipped"
+STACK_GHOSTTY="skipped"
+STACK_FONT="skipped"
+
+# --- Core -------------------------------------------------------------------
+
+step "Core requirements"
+
 [[ "$(uname -s)" == "Darwin" ]] || die "this installer is macOS only"
-command -v brew >/dev/null || die "Homebrew not found -- https://brew.sh"
+command -v brew >/dev/null || die "Homebrew not found -- install it first: https://brew.sh"
 
-# --- Dependencies -------------------------------------------------------------
-
-step "Installing dependencies"
-
-# `brew install` on an already-installed formula is a no-op that still costs a
-# few seconds each, so ask brew once what is missing.
 installed_formulae="$(brew list --formula -1)"
 installed_casks="$(brew list --cask -1)"
 
-# macOS ships bash 3.2, so no `mapfile` and no associative arrays here.
-need_req=()
-need_opt=()
-need_cask=()
+need_core=()
 
 for pkg in neovim ripgrep fd; do
-  grep -qx "$pkg" <<<"$installed_formulae" || need_req+=("$pkg")
+  grep -qx "$pkg" <<<"$installed_formulae" || need_core+=("$pkg")
 done
 
-# lazygit -> <leader>gg, gh -> the PR/issue pickers and octo.nvim,
-# mmdc -> inline Mermaid, magick -> inline svg/pdf/raster images.
+if [[ ${#need_core[@]} -gt 0 ]]; then
+  info "brew install ${need_core[*]}"
+  brew install "${need_core[@]}" || die "could not install ${need_core[*]}"
+fi
+
+# The version gate has to run after the install above, since that is what may
+# have just provided nvim.
+nvim_version="$(nvim --version | head -1 | sed 's/^NVIM v//')"
+
+if version_lt "$nvim_version" "$MIN_NVIM"; then
+  info "Neovim $nvim_version is below $MIN_NVIM (dropbar.nvim) -- upgrading"
+  brew upgrade neovim || die "could not upgrade neovim -- it may not be the Homebrew build"
+  nvim_version="$(nvim --version | head -1 | sed 's/^NVIM v//')"
+
+  version_lt "$nvim_version" "$MIN_NVIM" && die "Neovim is still $nvim_version, need $MIN_NVIM+"
+fi
+
+info "neovim $nvim_version, ripgrep, fd"
+
+# --- Stack runtimes ---------------------------------------------------------
+
+step "Language stacks"
+
+# Checking that the binary merely exists is not enough for either of these.
+# macOS ships ruby 2.6.10 with a working `gem`, so a presence check passes on a
+# machine where ruby-lsp (3.2+) cannot install at all.
+node_version="$(node --version 2>/dev/null | sed 's/^v//' || true)"
+
+if [[ -z "$node_version" ]]; then
+  warn "TypeScript: no node on PATH -- vtsls, tailwind, prisma and json are skipped"
+elif version_lt "$node_version" "$MIN_NODE"; then
+  warn "TypeScript: node $node_version is below $MIN_NODE -- vtsls may misbehave"
+  STACK_TS="node $node_version (below $MIN_NODE)"
+else
+  STACK_TS="node $node_version"
+  info "TypeScript: node $node_version"
+fi
+
+ruby_version="$(ruby -e 'print RUBY_VERSION' 2>/dev/null || true)"
+
+if [[ -z "$ruby_version" ]]; then
+  warn "Rails: no ruby on PATH -- ruby-lsp, rubocop and erb-lint are skipped"
+elif version_lt "$ruby_version" "$MIN_RUBY"; then
+  warn "Rails: ruby $ruby_version is macOS's system ruby, ruby-lsp needs $MIN_RUBY+"
+  warn "Rails: install a modern ruby with rbenv, mise or asdf, then re-run"
+else
+  STACK_RUBY="ruby $ruby_version"
+  info "Rails: ruby $ruby_version"
+fi
+
+# Casks are never fatal. Ghostty may have come from the .dmg, and a font
+# installed by hand (not by brew) makes the cask abort with "It seems there is
+# already a Font at ..."; `--adopt` takes ownership of those files instead.
+for cask in ghostty font-jetbrains-mono-nerd-font; do
+  if grep -qx "$cask" <<<"$installed_casks"; then
+    continue
+  fi
+
+  info "brew install --cask $cask"
+
+  brew install --cask "$cask" >/dev/null 2>&1 ||
+    brew install --cask --adopt "$cask" >/dev/null 2>&1 ||
+    warn "$cask could not be installed by brew"
+done
+
+if command -v ghostty >/dev/null || [[ -x /Applications/Ghostty.app/Contents/MacOS/ghostty ]]; then
+  STACK_GHOSTTY="present"
+else
+  warn "Ghostty not found -- the cmd+ shortcuts need it, everything else works anywhere"
+fi
+
+# The cask is one way to get a Nerd Font, a manual install is another, so look
+# for the glyphs rather than for the cask.
+if ls ~/Library/Fonts /Library/Fonts 2>/dev/null | grep -qi 'nerd'; then
+  STACK_FONT="present"
+else
+  warn "no Nerd Font found -- LazyVim's icons will render as tofu boxes"
+fi
+
+# --- Optional ---------------------------------------------------------------
+
 if [[ $MINIMAL -eq 0 ]]; then
+  step "Optional tools"
+
+  # lazygit -> <leader>gg, gh -> the PR/issue pickers and octo.nvim,
+  # mmdc -> inline Mermaid, magick -> inline svg/pdf/raster images.
+  need_opt=()
+
   for pkg in lazygit gh mermaid-cli imagemagick; do
     grep -qx "$pkg" <<<"$installed_formulae" || need_opt+=("$pkg")
   done
-fi
 
-for pkg in ghostty font-jetbrains-mono-nerd-font; do
-  grep -qx "$pkg" <<<"$installed_casks" || need_cask+=("$pkg")
-done
+  if [[ ${#need_opt[@]} -gt 0 ]]; then
+    info "brew install ${need_opt[*]}"
+    brew install "${need_opt[@]}" || warn "some optional tools failed -- run brew by hand to see which"
+  else
+    info "already present"
+  fi
 
-if [[ ${#need_req[@]} -gt 0 ]]; then
-  info "brew install ${need_req[*]}"
-  brew install "${need_req[@]}" || die "could not install ${need_req[*]}"
-fi
-
-# An optional tool that fails to build costs one feature, not the install.
-if [[ ${#need_opt[@]} -gt 0 ]]; then
-  info "brew install ${need_opt[*]}"
-  brew install "${need_opt[@]}" || warn "some optional tools failed -- rerun brew by hand to see which"
-fi
-
-# Casks are never fatal: Ghostty may have come from the .dmg, and a font
-# installed by hand (not by brew) makes the cask abort with "It seems there is
-# already a Font at ...". `--adopt` takes ownership of those files instead; if
-# that also fails, the only cost is the icons rendering as tofu boxes.
-if [[ ${#need_cask[@]} -gt 0 ]]; then
-  info "brew install --cask ${need_cask[*]}"
-  brew install --cask "${need_cask[@]}" ||
-    brew install --cask --adopt "${need_cask[@]}" ||
-    warn "cask install failed -- install ${need_cask[*]} by hand if something looks wrong"
-fi
-
-if [[ ${#need_req[@]} -eq 0 && ${#need_opt[@]} -eq 0 && ${#need_cask[@]} -eq 0 ]]; then
-  info "everything already present"
-fi
-
-# mermaid-cli depends on Homebrew's node. If you manage Node with fnm/asdf/mise,
-# yours has to stay first on PATH or vtsls ends up on the wrong runtime.
-if [[ $MINIMAL -eq 0 ]] && command -v node >/dev/null; then
-  case "$(command -v node)" in
+  # mermaid-cli depends on Homebrew's node. If Node is managed by fnm/asdf/mise,
+  # that one has to stay first on PATH or vtsls ends up on the wrong runtime.
+  case "$(command -v node || true)" in
     /opt/homebrew/bin/node | /usr/local/bin/node)
-      warn "node resolves to Homebrew's ($(command -v node)); a version manager would normally come first on PATH"
+      warn "node resolves to Homebrew's -- a version manager would normally come first on PATH"
       ;;
   esac
 fi
 
-# --- Version gate -------------------------------------------------------------
-
-step "Checking Neovim version"
-
-nvim_version="$(nvim --version | head -1 | sed 's/^NVIM v//')"
-
-# `sort -V` puts the lower version first; if that is not the minimum, we are below it.
-if [[ "$(printf '%s\n%s\n' "$MIN_NVIM" "$nvim_version" | sort -V | head -1)" != "$MIN_NVIM" ]]; then
-  die "Neovim $nvim_version is too old -- this config needs $MIN_NVIM+ (dropbar.nvim). Run: brew upgrade neovim"
-fi
-
-info "Neovim $nvim_version"
-
-# Both are needed by mason, and its failure message names neither.
-command -v node >/dev/null || warn "no node on PATH -- vtsls (TypeScript) will not install"
-command -v gem >/dev/null || warn "no gem on PATH -- ruby-lsp, rubocop and erb-lint will not install"
-
-# --- Link the config ----------------------------------------------------------
+# --- Config -----------------------------------------------------------------
 
 step "Linking $REPO -> ~/.config/nvim"
 
@@ -133,21 +199,19 @@ else
   info "linked"
 fi
 
-# --- Plugins ------------------------------------------------------------------
-
 step "Installing plugins at the commits in lazy-lock.json"
 
 nvim --headless "+Lazy! restore" +qa 2>&1 | tail -1
 info "done"
 
-# --- Language servers ---------------------------------------------------------
-
 step "Installing language servers (mason)"
 
 info "this takes a few minutes on a cold machine"
+# mason.lua gates the Ruby packages on a usable ruby itself, so a machine
+# without one installs the rest and reports what it skipped.
 nvim --headless -c "luafile $REPO/setup/mason.lua" 2>&1 | grep -E '^mason:' || true
 
-# --- Ghostty ------------------------------------------------------------------
+# --- Ghostty ----------------------------------------------------------------
 
 step "Installing the Ghostty config"
 
@@ -159,7 +223,7 @@ cp "$REPO/setup/ghostty/themes/clowk-night" "$GHOSTTY_DIR/themes/clowk-night"
 # Installing into ~/.config/ghostty is what most guides say and it is silently
 # ignored on any machine that already has the App Support config.
 if [[ -f "$HOME/.config/ghostty/config" ]]; then
-  warn "~/.config/ghostty/config exists and is overridden by the App Support config below"
+  warn "~/.config/ghostty/config exists and is overridden by the App Support config"
 fi
 
 if [[ -f "$GHOSTTY_DIR/config" ]]; then
@@ -181,17 +245,36 @@ else
   info "installed $GHOSTTY_DIR/config"
 fi
 
-if ghostty +validate-config >/dev/null 2>&1; then
+# The cask installs the .app but puts no `ghostty` on PATH, so a fresh machine
+# has to be pointed at the binary inside the bundle.
+ghostty_bin="$(command -v ghostty || true)"
+
+if [[ -z "$ghostty_bin" && -x /Applications/Ghostty.app/Contents/MacOS/ghostty ]]; then
+  ghostty_bin=/Applications/Ghostty.app/Contents/MacOS/ghostty
+fi
+
+if [[ -z "$ghostty_bin" ]]; then
+  warn "ghostty binary not found -- config validation skipped"
+elif "$ghostty_bin" +validate-config >/dev/null 2>&1; then
   info "ghostty +validate-config: ok"
 else
   warn "ghostty +validate-config failed -- run it by hand to see why"
 fi
 
-# --- Done ---------------------------------------------------------------------
+# --- Summary ----------------------------------------------------------------
 
-step "Done"
+step "Summary"
+
+printf '    %-12s %s\n' "core" "neovim $nvim_version, ripgrep, fd"
+printf '    %-12s %s\n' "typescript" "$STACK_TS"
+printf '    %-12s %s\n' "rails" "$STACK_RUBY"
+printf '    %-12s %s\n' "ghostty" "$STACK_GHOSTTY"
+printf '    %-12s %s\n' "nerd font" "$STACK_FONT"
 
 cat <<EOF
+
+    Anything reading "skipped" above is a stack you can enable later: install
+    what it named and re-run this script.
 
     Restart Ghostty (or press cmd+shift+, to reload it), then run: nvim
 
