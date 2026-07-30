@@ -1,0 +1,60 @@
+theme = clowk-night
+
+# Personal preference -- change or drop this line.
+working-directory = $HOME/code
+
+background-opacity = 0.95
+background-blur = true
+
+# --- Typography ---
+font-family = "JetBrains Mono"
+font-size = 14
+font-thicken = true
+
+# --- Window & Native macOS Integration ---
+window-padding-x = 3
+window-padding-y = 1
+
+macos-titlebar-style = tabs
+# `left`: the LEFT Option key acts as Alt (a modifier), while the RIGHT Option
+# key keeps composing accented characters. With `true` both become Alt and
+# dead-key accents stop working -- which matters on non-US keyboard layouts.
+macos-option-as-alt = left
+
+# --- Mouse & Cursor ---
+cursor-style = block
+mouse-hide-while-typing = true
+mouse-scroll-multiplier = 2.0
+
+# --- Keybinds: forward VSCode's cmd+ shortcuts to Neovim ---
+# `esc:X` sends ESC+X, which Neovim reads as <M-X>.
+#
+# WARNING: Ghostty does NOT support end-of-line comments. On an `esc:` action the
+# comment text would be sent along with the key, and `ghostty +validate-config`
+# would still exit 0 because `esc:` accepts arbitrary text. Always keep comments
+# on their own line.
+#
+# Note: these bindings apply to all of Ghostty, not only when Neovim is focused.
+# In a plain shell they just send the sequence to the shell (harmless).
+#
+# super+j = toggle terminal
+keybind = super+j=esc:j
+# super+w = close buffer
+keybind = super+w=esc:w
+# super+n = new buffer
+keybind = super+n=esc:n
+# super+| (shift+backslash) = vertical split
+keybind = super+shift+backslash=esc:\
+# super+1..5 = go to tab 1..5
+keybind = super+one=esc:1
+keybind = super+two=esc:2
+keybind = super+three=esc:3
+keybind = super+four=esc:4
+keybind = super+five=esc:5
+
+# --- Ghostty's own actions, moved out of the way (one key, one owner) ---
+# was super+w
+keybind = super+shift+w=close_surface
+# was super+n
+keybind = super+shift+n=new_window
+# switching Ghostty tabs stays on the defaults: super+shift+[ and super+shift+]

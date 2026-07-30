@@ -1,0 +1,13 @@
+tt.*
+.tests
+doc/tags
+debug
+.repro
+foo.*
+*.log
+data
+
+# Machine-local overrides -- see README.
+# Any lua/plugins/local-*.lua is auto-imported by lazy but never tracked.
+lua/plugins/local-*.lua
+lua/config/local.lua
