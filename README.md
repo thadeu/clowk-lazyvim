@@ -151,9 +151,36 @@ git remote, so a self-hosted instance needs no extra configuration.
 | Key | Action |
 | --- | --- |
 | `<leader>H` / `<leader>h` / `<leader>1..9` | harpoon: anchor / menu / jump |
+| `<leader>cb` | breadcrumb: pick a segment (or click one) |
 | `<leader>uw` | toggle wrap |
 | `<leader>uf` | toggle format-on-save |
 | `zs` / `ze` / `zH` / `zL` | manual horizontal scrolling |
+
+## Breadcrumb
+
+LazyVim ships no breadcrumb. What it enables by default is the trouble symbol
+path in the **statusline at the bottom** — the symbol you are inside, without
+the file path. The `editor.navic` extra does not help either: it also writes to
+the statusline, and only when `vim.g.trouble_lualine` is false, which is not the
+default.
+
+`lua/plugins/breadcrumb.lua` adds `dropbar.nvim`, which puts the VSCode-style
+path in the **winbar**, one line per window:
+
+```
+ lua  plugins  markdown.lua  return  [1]  opts  image  doc
+```
+
+It builds the path from LSP `documentSymbol`, treesitter and the file path, in
+that order. Every segment is clickable and opens a menu to jump; `<leader>cb`
+does the same from the keyboard.
+
+The symbol part is therefore duplicated between the winbar and the statusline.
+To keep it only at the top, set `vim.g.trouble_lualine = false` in
+`lua/config/options.lua`.
+
+Note that the buffer tabs cannot be made taller: every bufferline plugin writes
+to `vim.o.tabline`, which is exactly one screen line.
 
 ## Markdown and Mermaid
 
@@ -263,6 +290,7 @@ lua/plugins/
   octo.lua                    picker -> snacks
   markdown.lua                snacks.image for inline mermaid / math
   harpoon.lua                 note on harpoon vs bufferline
+  breadcrumb.lua              dropbar: VSCode-style path in the winbar
   colorscheme.lua
 setup/ghostty/                terminal config: cmd+ keybinds, theme, typography
 ```
