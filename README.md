@@ -16,6 +16,14 @@ colours are `clowk-night`, matching the Ghostty theme in `setup/ghostty/`.
 ## Install
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/thadeu/clowk-lazyvim/main/setup/install.sh | bash
+```
+
+That clones the repo to `~/code/clowk-lazyvim` (override with `CLOWK_DIR`) and
+then re-runs itself from inside it. Or clone it yourself first, which is the
+same thing:
+
+```sh
 git clone https://github.com/thadeu/clowk-lazyvim.git ~/code/clowk-lazyvim
 ~/code/clowk-lazyvim/setup/install.sh
 ```
@@ -49,6 +57,38 @@ It ends on a summary of what is live and what was skipped:
 `gh auth login`, which is interactive.
 
 Verify a server actually attached by opening a file and pressing `<leader>cl`.
+
+## Updating a machine that already has it
+
+The curl one-liner is also the update command — it pulls the existing clone
+before re-running, so the same line works on a machine that already has it:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/thadeu/clowk-lazyvim/main/setup/install.sh | bash
+```
+
+Run from a local clone, though, `setup/install.sh` does NOT pull — it installs
+whatever the clone currently holds. There the update is two steps:
+
+```sh
+cd ~/code/clowk-lazyvim
+git pull
+./setup/install.sh
+```
+
+Re-running is safe: every step checks its own result first, the symlink is left
+alone once it points at the clone, and the Ghostty keybinds are re-grafted
+between their markers rather than appended again.
+
+To land on a released version instead of the tip of main, use the version
+script — it pulls the plugin set that goes with it, which a bare `git pull`
+does not:
+
+```sh
+./setup/version.sh use v0.1.0
+```
+
+Either way, restart Ghostty (or `cmd+shift+,`) so the keybinds reload.
 
 ## Dependencies
 

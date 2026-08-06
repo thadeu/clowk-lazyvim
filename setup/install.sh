@@ -5,6 +5,14 @@
 #   ./setup/install.sh              everything, including the optional tools
 #   ./setup/install.sh --minimal    skip the optional tools
 #
+# It also runs straight from the web, with no clone of your own:
+#
+#   curl -fsSL https://raw.githubusercontent.com/thadeu/clowk-lazyvim/main/setup/install.sh | bash
+#
+# In that mode it clones the repo first (or pulls, if the clone is already
+# there) and then re-runs itself from inside it -- see the bootstrap below.
+# CLOWK_DIR overrides where that clone lands; the default is ~/code/clowk-lazyvim.
+#
 # Safe to re-run: every step checks its own result first, and anything it would
 # overwrite is moved to ~/.config/nvim-backup-<timestamp> instead.
 #
@@ -23,7 +31,39 @@
 
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_URL="https://github.com/thadeu/clowk-lazyvim.git"
+
+# --- Bootstrap: find the repo, cloning it first when there is nothing to find -
+#
+# Piped from curl there is no script FILE, so ${BASH_SOURCE[0]} is empty and the
+# usual `dirname .. ` trick silently resolves to the parent of whatever your cwd
+# happens to be -- or to `/`. Everything below would then symlink ~/.config/nvim
+# at the wrong directory, AFTER moving the real config to a backup. So the file
+# has to be proven to exist rather than assumed.
+if [[ -f "${BASH_SOURCE[0]:-}" ]]; then
+  REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+  REPO="${CLOWK_DIR:-$HOME/code/clowk-lazyvim}"
+
+  command -v git >/dev/null 2>&1 ||
+    { printf 'error: git is required to bootstrap. Install the Xcode command line tools: xcode-select --install\n' >&2; exit 1; }
+
+  if [[ -d "$REPO/.git" ]]; then
+    printf '\n\033[1;34m==>\033[0m \033[1mUpdating the existing clone at %s\033[0m\n' "$REPO"
+    # --ff-only so local commits are reported as a conflict instead of being
+    # merged into by a script running unattended.
+    git -C "$REPO" pull --ff-only
+  else
+    printf '\n\033[1;34m==>\033[0m \033[1mCloning into %s\033[0m\n' "$REPO"
+    mkdir -p "$(dirname "$REPO")"
+    git clone "$REPO_URL" "$REPO"
+  fi
+
+  # Re-run from inside the clone, where BASH_SOURCE exists and every path below
+  # resolves. exec so this process is replaced and the script runs exactly once.
+  exec bash "$REPO/setup/install.sh" "$@"
+fi
+
 GHOSTTY_DIR="$HOME/Library/Application Support/com.mitchellh.ghostty"
 BACKUP="$HOME/.config/nvim-backup-$(date +%Y%m%d-%H%M%S)"
 
