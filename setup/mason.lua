@@ -126,14 +126,58 @@ if #pending > 0 then
   print(("mason: installing %d package(s), this takes a few minutes..."):format(#pending))
 end
 
--- 25 min: the gem-backed packages compile native extensions on a cold machine.
-vim.wait(1500000, function()
+-- Wait, reporting what is still outstanding every 15s.
+--
+-- Without this the script is silent for as long as it takes, and a genuinely
+-- stuck package is indistinguishable from a slow one -- "mason is hanging" with
+-- no name attached is not something you can act on. Naming the stragglers turns
+-- it into "it is stuck on X", which you can.
+--
+-- 10 min, down from 25: the packages that justified the longer wait were the
+-- gems compiling native extensions, and those are gone. A package that has not
+-- landed in 10 minutes is stuck, not slow, and failing then beats another
+-- quarter of an hour of silence.
+local TIMEOUT_MS = 600000
+local TICK_MS = 2000
+local REPORT_EVERY = 15000
+
+-- Wall clock, not a counter incremented per callback: vim.wait calls the
+-- predicate on events too, not only every TICK_MS, so counting calls reports a
+-- time that drifts away from the real one.
+local uv = vim.uv or vim.loop
+local started = uv.hrtime()
+local last_report = 0
+
+local function elapsed_ms()
+  return (uv.hrtime() - started) / 1e6
+end
+
+local ok_all = vim.wait(TIMEOUT_MS, function()
+  local outstanding = {}
+
   for _, pkg in ipairs(pending) do
-    if not pkg:is_installed() then return false end
+    if not pkg:is_installed() then
+      outstanding[#outstanding + 1] = pkg.name
+    end
   end
 
-  return true
-end, 2000)
+  if #outstanding == 0 then
+    return true
+  end
+
+  local now = elapsed_ms()
+
+  if now - last_report >= REPORT_EVERY then
+    last_report = now
+    print(("mason: %ds -- waiting on %d: %s"):format(now / 1000, #outstanding, table.concat(outstanding, ", ")))
+  end
+
+  return false
+end, TICK_MS)
+
+if not ok_all then
+  print(("mason: TIMEOUT after %d minutes"):format(TIMEOUT_MS / 60000))
+end
 
 local failed = {}
 

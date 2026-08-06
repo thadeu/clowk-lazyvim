@@ -249,7 +249,10 @@ step "Installing language servers (mason)"
 info "this takes a few minutes on a cold machine"
 # mason.lua gates the Ruby packages on a usable ruby itself, so a machine
 # without one installs the rest and reports what it skipped.
-nvim --headless -c "luafile $REPO/setup/mason.lua" 2>&1 | grep -E '^mason:' || true
+# --line-buffered, or grep holds the progress lines in a 4K buffer and prints
+# them all at the end -- which is exactly the silence the progress is there to
+# break.
+nvim --headless -c "luafile $REPO/setup/mason.lua" 2>&1 | grep --line-buffered -E '^mason:' || true
 
 # --- Ghostty ----------------------------------------------------------------
 
