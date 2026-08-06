@@ -54,27 +54,95 @@ keybind = super+w=esc:w
 keybind = super+n=esc:n
 # super+| (shift+backslash) = vertical split
 keybind = super+shift+backslash=esc:\
-# super+1..5 = go to tab 1..5
-keybind = super+one=esc:1
-keybind = super+two=esc:2
-keybind = super+three=esc:3
-keybind = super+four=esc:4
-keybind = super+five=esc:5
+# super+1..5 is deliberately NOT forwarded: it stays Ghostty's own tab
+# switching. Buffer switching inside Neovim is option+1..9, which needs no
+# keybind here -- Ghostty already sends option as Alt.
 
-# The lines above bind the *unicode* trigger (super+1). Ghostty also ships
-# defaults on the *physical* key (super+digit_1=goto_tab:1), and the two coexist
-# in `ghostty +show-config`. Without overriding the physical ones too, cmd+1..5
-# can switch the Ghostty tab instead of reaching Neovim.
-# Ghostty tab switching stays on super+shift+[ and super+shift+].
-keybind = super+digit_1=esc:1
-keybind = super+digit_2=esc:2
-keybind = super+digit_3=esc:3
-keybind = super+digit_4=esc:4
-keybind = super+digit_5=esc:5
+# super+b = toggle the file explorer
+keybind = super+b=esc:b
+# super+option+b = Claude Code in a right sidebar.
+#
+# Bound on BOTH the unicode trigger and the physical key, the same way cmd+1
+# needed once. Holding option makes macOS produce a different character for the
+# key -- option+b is the integral sign -- so a `super+alt+b` trigger alone can
+# miss, while `key_b` matches the physical key whatever it produced.
+keybind = super+alt+b=esc:B
+keybind = super+alt+key_b=esc:B
+# super+p = find file
+keybind = super+p=esc:p
+# super+f = grep the project
+keybind = super+f=esc:f
+# super+z = undo
+keybind = super+z=esc:z
+# super+shift+z = redo
+keybind = super+shift+z=esc:Z
+# super+/ = toggle comment
+keybind = super+slash=esc:/
+# super+shift+f = find and replace across the project
+keybind = super+shift+f=esc:F
+# super+c = copy to the system clipboard
+keybind = super+c=esc:c
+# super+x = cut to the system clipboard
+keybind = super+x=esc:x
+
+# --- option+arrow / option+delete ---
+# These MUST be bound. Ghostty ships `alt+arrow_left=esc:b` and
+# `alt+arrow_right=esc:f` by default, which here would collide head-on with
+# super+b (explorer) and super+f (grep) -- option+left would open the file tree.
+#
+# Every sequence below was verified by feeding the raw bytes to Neovim in a pty
+# and reading back the key it resolved to.
+#
+# The unshifted pair goes as alt+arrow (<M-Left>), NOT as ctrl+arrow: LazyVim
+# binds <C-Left> / <C-Right> to shrink and grow the window, so option+left would
+# resize the split instead of moving the cursor.
+#
+# option+left / option+right = previous / next word
+keybind = alt+arrow_left=text:\x1b[1;3D
+keybind = alt+arrow_right=text:\x1b[1;3C
+# option+shift+left / option+shift+right = select the previous / next word.
+# ctrl+shift+arrow IS free, and Vim answers it natively once `keymodel` is set
+# (see lua/config/options.lua) -- word-wise motion that starts a selection.
+keybind = alt+shift+arrow_left=text:\x1b[1;6D
+keybind = alt+shift+arrow_right=text:\x1b[1;6C
+# option+up / option+down = move the line up / down
+keybind = alt+arrow_up=text:\x1b[1;3A
+keybind = alt+arrow_down=text:\x1b[1;3B
+# option+delete = delete the previous word.
+# \x17 is ^W, which already means exactly that in Neovim's insert and command
+# modes AND in the shell, so nothing has to be mapped on either side.
+keybind = alt+backspace=text:\x17
+
+# --- cmd+arrow: start and end of line ---
+# Terminals have no way to transmit cmd, so unlike option these send nothing at
+# all without a keybind. `text:` writes the raw escape sequence.
+#
+# They are forwarded as Home / End rather than through the `esc:` convention
+# used above, because that is what these keys MEAN: Neovim already moves to the
+# start and end of the line for them, and so does a plain shell. The shifted
+# pair selects instead of moving -- see `keymodel` in lua/config/options.lua.
+#
+# super+left = start of line
+keybind = super+left=text:\x1b[H
+# super+right = end of line
+keybind = super+right=text:\x1b[F
+# super+shift+left = select to start of line
+keybind = super+shift+left=text:\x1b[1;2H
+# super+shift+right = select to end of line
+keybind = super+shift+right=text:\x1b[1;2F
+
+# super+v is NOT forwarded on purpose: Ghostty's own paste_from_clipboard
+# already reaches Neovim through bracketed paste (normal mode included) and
+# keeps working in a plain shell, which `esc:v` would break.
 
 # --- Ghostty's own actions, moved out of the way (one key, one owner) ---
 # was super+w
 keybind = super+shift+w=close_surface
 # was super+n
 keybind = super+shift+n=new_window
+# was super+c. Ghostty copies the TERMINAL selection, which is not Neovim's
+# visual selection -- hence super+c going to Neovim instead. `copy-on-select`
+# above already puts any mouse selection on the clipboard, so this is a
+# fallback more than a daily key.
+keybind = super+shift+c=copy_to_clipboard
 # <<< clowk-lazyvim keybinds <<<

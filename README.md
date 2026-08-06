@@ -139,13 +139,44 @@ receives that as `<M-X>`. See `setup/ghostty/config`.
 
 | Key | Action |
 | --- | --- |
+| `cmd+p` | find file by name or folder — same as `<leader><space>` |
+| `cmd+b` | toggle the file explorer |
+| `cmd+option+b` | Claude Code in a right sidebar, in the project root |
+| `cmd+f` | grep the project — same as `<leader>/`, the `g` on the start screen |
+| `cmd+shift+f` | find and replace across the project (grug-far) |
+| `cmd+z` / `cmd+shift+z` | undo / redo |
+| `cmd+/` | toggle comment (line, or the selection in visual) |
+| `option+delete` | delete the previous word (insert and `:` / `/` prompts) |
+| `option+left` / `option+right` | jump a word back / forward |
+| `option+shift+left` / `option+shift+right` | select a word back / forward |
+| `option+up` / `option+down` | move the line (or selection) up / down |
+| `cmd+left` / `cmd+right` | start / end of line |
+| `cmd+shift+left` / `cmd+shift+right` | select to start / end of line |
+| `delete` (in normal mode) | delete text without entering insert first |
+
+Shift+arrow selecting is `keymodel=startsel,stopsel` in `lua/config/options.lua`,
+not a set of mappings — it is a built-in Vim feature, and it gets the cursor
+column right when the selection starts from insert mode. It lands in **visual**
+mode, not select mode: in select mode any printable key replaces the selection
+(VSCode's behaviour), which would put every Vim operator out of reach.
+| `cmd+c` / `cmd+x` | copy / cut to the system clipboard (whole line with no selection) |
+| `cmd+v` | paste — Ghostty's own, not remapped (see below) |
 | `cmd+j` | toggle terminal |
 | `cmd+w` | close buffer (keeps the window layout) |
 | `cmd+n` | new buffer |
 | `cmd+\|` | vertical split |
-| `cmd+1..5` | go to tab N (bufferline) |
-| `cmd+shift+w` / `cmd+shift+n` | Ghostty's own close/new, moved aside |
+| `option+1..9` | go to tab N (bufferline) — `cmd+1..5` stays Ghostty's tabs |
+| `cmd+shift+w` / `cmd+shift+n` / `cmd+shift+c` | Ghostty's own close/new/copy, moved aside |
 | `option+double-click` | definition of the symbol in a vertical split |
+
+`cmd+v` is the one key deliberately left alone. Ghostty's `paste_from_clipboard`
+already reaches Neovim through bracketed paste — normal mode included, where the
+text is inserted rather than run as commands — and forwarding it as `esc:v` would
+break pasting in a plain shell for nothing.
+
+`cmd+c` does need forwarding, though: Ghostty would copy the *terminal*
+selection, which is not Neovim's visual selection. Mouse selections still land on
+the clipboard by themselves, via `copy-on-select`.
 
 ### LSP (LazyVim defaults)
 
@@ -283,11 +314,42 @@ answers `14`. Every guide tells you to install into `~/.config/ghostty`, and on
 any machine that has already opened Ghostty's own config editor that is a no-op
 you can stare at for a while.
 
-**`cmd+1..5` needs the physical key bound as well.**
-Ghostty ships defaults on the physical key (`super+digit_1=goto_tab:1`) that
-coexist with the unicode trigger (`super+1`) in `ghostty +show-config`. Binding
-only `super+one` leaves `cmd+1` able to switch the Ghostty tab instead of
-reaching Neovim, so `setup/ghostty/config` binds both.
+**Buffer switching costs nothing on the terminal side.**
+`option+1..9` needs no Ghostty keybind at all: `macos-option-as-alt` already
+makes option arrive as Alt, so `option+1` reaches Neovim as `<M-1>` on its own.
+That leaves `cmd+1..5` to Ghostty for switching its own tabs.
+
+Worth knowing if you ever do want a `cmd+N` forwarded: Ghostty ships defaults on
+the *physical* key (`super+digit_1=goto_tab:1`) that coexist with the unicode
+trigger (`super+1`) in `ghostty +show-config`, and binding only `super+one`
+leaves `cmd+1` switching the Ghostty tab instead of reaching Neovim. Both have to
+be bound.
+
+The same trap catches any binding that holds **option**, and it caught
+`cmd+option+b`: option changes the character macOS reports for the key —
+option+b is `∫` — so a `super+alt+b` trigger can miss entirely. `super+alt+key_b`
+matches the physical key whatever character came out of it, so both are bound.
+Related: `macos-option-as-alt = left` means only the LEFT option counts as Alt,
+so these combos do nothing on the right one.
+
+**Ghostty already binds `option+left` and `option+right` — to `esc:b` / `esc:f`.**
+Which, with `cmd+b` on the explorer and `cmd+f` on grep, means option+left would
+have opened the file tree. Anything forwarded through `esc:` collides with a
+plain option+key that produces the same letter, so `ghostty +show-config` is
+worth reading before adding one.
+
+**`<C-Left>` and `<C-Right>` are taken by LazyVim, for window resizing.**
+That rules out the tidy version of option+arrow — forwarding it as ctrl+arrow so
+Vim's built-in word motions handle it — because option+left would resize the
+split. `<C-S-Left>` / `<C-S-Right>` ARE free, so the shifted half still gets to
+be native. The unshifted half is mapped by hand.
+
+**A pty test cannot verify `option+delete`.**
+Feeding `ESC` + `DEL` to nvim through `script` proves nothing: `DEL` is the tty's
+erase character, so the line discipline eats the `ESC` before nvim sees it. Every
+other sequence here was verified that way and resolved exactly as expected;
+option+delete instead sidesteps the question by sending `^W`, which already
+means delete-previous-word in both nvim and the shell.
 
 **`nvim --headless "+MasonInstall ..." +qa` does not work, in two ways.**
 First, `:MasonInstall` does not exist there — mason is lazy-loaded and the
@@ -320,8 +382,8 @@ It demands 8 columns of slack between cursor and edge, so the window starts
 scrolling before the text reaches it. Set to 0 in `lua/config/options.lua`.
 
 **Harpoon is not a replacement for tabs.**
-Its list starts empty, so `cmd+1` with nothing anchored does nothing — which
-reads as a bug. `cmd+1..5` uses bufferline (position = the tab you see). Harpoon
+Its list starts empty, so `<leader>1` with nothing anchored does nothing — which
+reads as a bug. `option+1..9` uses bufferline (position = the tab you see). Harpoon
 lives on `<leader>1..9`, for anchors that do not shift position.
 
 **Diffview opens in a tab page, not a float.**
@@ -360,12 +422,35 @@ lua/plugins/
   markdown.lua                snacks.image for inline mermaid / math
   harpoon.lua                 note on harpoon vs bufferline
   breadcrumb.lua              dropbar: VSCode-style path in the winbar
+  claude.lua                  cmd+option+b: Claude Code in a right sidebar
   colorscheme.lua
 setup/
   install.sh                  one-shot installer, idempotent
+  version.sh                  release / roll back, on git tags
   mason.lua                   installs the language servers and waits for them
   ghostty/                    terminal config: cmd+ keybinds, theme, typography
 ```
+
+## Versions and rollback
+
+Every release is a git tag, and `setup/version.sh` is the front end:
+
+```sh
+./setup/version.sh                 # what is installed right now
+./setup/version.sh list            # every version, newest first
+./setup/version.sh release v0.2.0  # tag the current commit and push it
+./setup/version.sh use v0.1.0      # roll everything back to that version
+./setup/version.sh use main        # back to the tip of main
+```
+
+A version is the config **and** the plugin set. `use` checks out the tag
+(detached, on purpose — a version is a fixed point) and then replays the
+`lazy-lock.json` committed with it, so the plugins go back to the commits that
+version was tested against. It also re-grafts that version's Ghostty keybinds
+into your terminal config, keeping your own preferences.
+
+Language servers are the one thing not rolled back — mason keeps whatever is
+installed. Run `./setup/install.sh` if a version needs a different set.
 
 ## Out of scope
 
