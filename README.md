@@ -113,7 +113,7 @@ Install what you are missing and re-run the script to enable it later.
 | | Gates | Why the check is a version, not a presence test |
 | --- | --- | --- |
 | **node** 20+ | `vtsls`, tailwind, prisma, json | — |
-| **ruby** 3.2+ | `ruby-lsp`, `rubocop`, `erb-lint` | macOS ships ruby **2.6.10** with a working `gem`, so "is ruby installed" answers yes on a machine where none of these can install. mason's failure there never mentions Ruby |
+| **ruby** 3.2+ | `ruby-lsp`, `rubocop` | macOS ships ruby **2.6.10** with a working `gem`, so "is ruby installed" answers yes on a machine where none of these can install. mason's failure there never mentions Ruby |
 | **ghostty** | the `cmd+` shortcuts, via its `esc:` keybind action | everything else works in any terminal |
 | a **Nerd Font** | icons | LazyVim's file icons, git signs and diagnostics are Nerd Font glyphs; a plain family renders every one as a tofu box. The script installs `font-jetbrains-mono-nerd-font` — **not** `font-jetbrains-mono`, which is the cut without the glyphs — and accepts any Nerd Font you already have |
 

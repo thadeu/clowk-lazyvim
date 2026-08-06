@@ -39,7 +39,6 @@ local PACKAGES = {
 
   -- Markdown
   "markdownlint-cli2",
-  "markdown-toc",
 
   -- Lua, for editing this config
   "lua-language-server",
@@ -49,14 +48,25 @@ local PACKAGES = {
   "shfmt",
 }
 
+-- Removed on purpose, because they fail often enough to take the whole install
+-- down with them, and neither is load-bearing:
+--
+--   erb-formatter, erb-lint  gems that compile native extensions (erb-lint
+--                            pulls better_html), so they need a working C
+--                            toolchain on top of a recent Ruby. Only used for
+--                            Rails ERB templates.
+--   markdown-toc             generates a table of contents in markdown, and
+--                            nothing here calls it.
+--
+-- To bring one back, put it in the list below (or in PACKAGES) and re-run
+-- setup/install.sh -- or just `:MasonInstall <name>` from inside Neovim.
+
 -- These are gems, so they need a host Ruby -- and a recent one. Checking that
 -- `ruby` merely exists is not enough: macOS ships 2.6.10 with a working `gem`,
 -- and mason's failure on a machine like that never mentions Ruby at all.
 local RUBY_PACKAGES = {
   "ruby-lsp",
   "rubocop",
-  "erb-formatter",
-  "erb-lint",
 }
 
 local MIN_RUBY = "3.2.0"
