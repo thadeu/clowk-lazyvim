@@ -32,8 +32,8 @@ local PACKAGES = {
   "json-lsp",
 
   -- Docker / YAML
-  "dockerfile-language-server",
-  "docker-compose-language-service",
+  -- hadolint is a single downloaded binary; the two Docker LANGUAGE SERVERS are
+  -- npm packages and were dropped -- see the note above RUBY_PACKAGES.
   "hadolint",
   "yaml-language-server",
 
@@ -57,6 +57,10 @@ local PACKAGES = {
 --                            Rails ERB templates.
 --   markdown-toc             generates a table of contents in markdown, and
 --                            nothing here calls it.
+--   dockerfile-language-server, docker-compose-language-service
+--                            npm packages that 404 behind a corporate VPN.
+--                            Editing Dockerfiles still gets syntax and
+--                            hadolint; only completion is lost.
 --
 -- To bring one back, put it in the list below (or in PACKAGES) and re-run
 -- setup/install.sh -- or just `:MasonInstall <name>` from inside Neovim.
@@ -106,6 +110,16 @@ registry.refresh()
 local pending = {}
 local unknown = {}
 
+-- name -> error, for packages whose install finished and finished badly.
+--
+-- Package:install takes a callback that fires with (success, err) the moment
+-- the job settles. Without it the only signal is is_installed() staying false,
+-- which looks identical to "still downloading" -- so one unreachable package
+-- held the whole step hostage until the timeout. On a machine behind a
+-- corporate VPN, where the npm registry is not reachable, that is every npm
+-- package at once.
+local failures = {}
+
 for _, name in ipairs(PACKAGES) do
   local found, pkg = pcall(registry.get_package, name)
 
@@ -114,9 +128,14 @@ for _, name in ipairs(PACKAGES) do
   elseif not pkg:is_installed() then
     -- LazyVim's own ensure_installed may already be installing this package, in
     -- which case install() raises "Package is already installing". Waiting on it
-    -- below is still correct, so the error is not fatal.
+    -- below is still correct, so the error is not fatal -- but there is no
+    -- callback for that one, so the wait falls back to is_installing().
     pcall(function()
-      pkg:install()
+      pkg:install(nil, function(success, err)
+        if not success then
+          failures[pkg.name] = tostring(err):gsub("%s+", " "):sub(1, 200)
+        end
+      end)
     end)
     pending[#pending + 1] = pkg
   end
@@ -152,11 +171,29 @@ local function elapsed_ms()
   return (uv.hrtime() - started) / 1e6
 end
 
+-- A package is settled once it is installed OR its install failed. Waiting on a
+-- failure is waiting for something that will never happen.
+--
+-- GRACE_MS covers the packages we could not attach a callback to (someone else
+-- was already installing them): for those the only signal is is_installing(),
+-- which is also false in the instant before the job starts. Reading that too
+-- early would call a package failed before it began.
+local GRACE_MS = 10000
+
+local function settled(pkg, now)
+  if pkg:is_installed() or failures[pkg.name] then
+    return true
+  end
+
+  return now > GRACE_MS and not pkg:is_installing()
+end
+
 local ok_all = vim.wait(TIMEOUT_MS, function()
+  local now = elapsed_ms()
   local outstanding = {}
 
   for _, pkg in ipairs(pending) do
-    if not pkg:is_installed() then
+    if not settled(pkg, now) then
       outstanding[#outstanding + 1] = pkg.name
     end
   end
@@ -164,8 +201,6 @@ local ok_all = vim.wait(TIMEOUT_MS, function()
   if #outstanding == 0 then
     return true
   end
-
-  local now = elapsed_ms()
 
   if now - last_report >= REPORT_EVERY then
     last_report = now
@@ -178,6 +213,15 @@ end, TICK_MS)
 if not ok_all then
   print(("mason: TIMEOUT after %d minutes"):format(TIMEOUT_MS / 60000))
 end
+
+-- Let the install callbacks land before reporting.
+--
+-- settled() can call a package done via is_installing() a moment before its
+-- callback runs, and the callback is what carries the REASON -- so without this
+-- pause every failure reports "see :Mason for the log" instead of the error.
+vim.wait(1500, function()
+  return false
+end)
 
 local failed = {}
 
@@ -193,13 +237,24 @@ for _, name in ipairs(unknown) do
   print("mason: UNKNOWN package " .. name .. " -- renamed upstream?")
 end
 
+print(("mason: %d/%d packages installed"):format(#PACKAGES - #failed, #PACKAGES))
+
+-- Failures are reported and stepped over, not fatal.
+--
+-- One unreachable package used to take the entire language server step with it,
+-- which on a network that blocks part of the registry means losing the servers
+-- that WOULD have installed. Each of these gates one language; the rest of the
+-- editor does not care.
+--
+-- The per-package reason is printed, because "FAILED -> a, b, c" sends you
+-- digging through :Mason to find out it was one 404 repeated three times.
 if #failed > 0 then
-  io.stderr:write("mason: FAILED -> " .. table.concat(failed, ", ") .. "\n")
-  io.stderr:write("mason: open nvim and run :Mason to see the per-package log\n")
-  vim.cmd("cquit 1")
+  print(("mason: %d FAILED, continuing anyway"):format(#failed))
 
-  return
+  for _, name in ipairs(failed) do
+    print(("mason:   %s -- %s"):format(name, failures[name] or "see :Mason for the log"))
+  end
+
+  print("mason: re-run setup/install.sh to retry only these")
 end
-
-print(("mason: %d/%d packages installed"):format(#PACKAGES, #PACKAGES))
 vim.cmd("qa!")

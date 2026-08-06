@@ -33,4 +33,22 @@ return {
       end, opts.ensure_installed or {})
     end,
   },
+
+  -- The Docker language servers come in through a THIRD door: LazyVim feeds
+  -- every configured server to mason-lspconfig, which installs it. Filtering
+  -- mason's ensure_installed above does not touch that path -- `mason = false`
+  -- is the switch for it, and LazyVim still configures the server, so it works
+  -- the moment the binary exists by any other means.
+  --
+  -- Both are npm packages that 404 behind a corporate VPN. Dockerfiles keep
+  -- syntax highlighting and hadolint; what is lost is completion.
+  {
+    "neovim/nvim-lspconfig",
+    opts = {
+      servers = {
+        dockerls = { mason = false },
+        docker_compose_language_service = { mason = false },
+      },
+    },
+  },
 }
