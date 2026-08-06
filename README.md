@@ -19,14 +19,20 @@ colours are `clowk-night`, matching the Ghostty theme in `setup/ghostty/`.
 curl -fsSL https://raw.githubusercontent.com/thadeu/clowk-lazyvim/main/setup/install.sh | bash
 ```
 
-That clones the repo to `~/code/clowk-lazyvim` (override with `CLOWK_DIR`) and
-then re-runs itself from inside it. Or clone it yourself first, which is the
-same thing:
+That clones the repo to `~/.config/clowk-lazyvim` and then re-runs itself from
+inside it. `~/.config/nvim` becomes a symlink to that clone.
+
+The location is fixed, **not** taken from wherever the script is run — so every
+machine ends up with the same layout, and there is no way to accidentally
+install from a stray copy. `CLOWK_DIR` overrides it:
 
 ```sh
-git clone https://github.com/thadeu/clowk-lazyvim.git ~/code/clowk-lazyvim
-~/code/clowk-lazyvim/setup/install.sh
+CLOWK_DIR=~/code/clowk-lazyvim curl -fsSL https://raw.githubusercontent.com/thadeu/clowk-lazyvim/main/setup/install.sh | bash
 ```
+
+Running `setup/install.sh` from a clone that is not the target still installs to
+the target — it says so and carries on. That is what `CLOWK_DIR` is for when you
+keep a development checkout somewhere else.
 
 Homebrew is the only thing you install yourself. The script is idempotent —
 re-run it any time — and it:
@@ -71,7 +77,7 @@ Run from a local clone, though, `setup/install.sh` does NOT pull — it installs
 whatever the clone currently holds. There the update is two steps:
 
 ```sh
-cd ~/code/clowk-lazyvim
+cd ~/.config/clowk-lazyvim
 git pull
 ./setup/install.sh
 ```
@@ -141,8 +147,8 @@ The same steps without the script. The order matters: mason cannot install
 anything before lazy has cloned it.
 
 ```sh
-git clone https://github.com/thadeu/clowk-lazyvim.git ~/code/clowk-lazyvim
-ln -s ~/code/clowk-lazyvim ~/.config/nvim
+git clone https://github.com/thadeu/clowk-lazyvim.git ~/.config/clowk-lazyvim
+ln -s ~/.config/clowk-lazyvim ~/.config/nvim
 
 nvim --headless "+Lazy! restore" +qa
 nvim --headless -c "luafile $HOME/.config/nvim/setup/mason.lua"

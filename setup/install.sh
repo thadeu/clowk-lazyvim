@@ -33,17 +33,32 @@ set -euo pipefail
 
 REPO_URL="https://github.com/thadeu/clowk-lazyvim.git"
 
-# --- Bootstrap: find the repo, cloning it first when there is nothing to find -
+# --- Bootstrap: the install always lives at one fixed path in $HOME ------------
 #
-# Piped from curl there is no script FILE, so ${BASH_SOURCE[0]} is empty and the
+# NOT wherever the script happens to be run from. Deriving the location from the
+# script's own path gives a different install per copy of the repo, and piped
+# from curl there is no script FILE at all: ${BASH_SOURCE[0]} is empty, and the
 # usual `dirname .. ` trick silently resolves to the parent of whatever your cwd
 # happens to be -- or to `/`. Everything below would then symlink ~/.config/nvim
-# at the wrong directory, AFTER moving the real config to a backup. So the file
-# has to be proven to exist rather than assumed.
-if [[ -f "${BASH_SOURCE[0]:-}" ]]; then
-  REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-else
-  REPO="${CLOWK_DIR:-$HOME/code/clowk-lazyvim}"
+# at that directory, AFTER moving the real config into a backup.
+#
+# One fixed path removes the whole question. ~/.config keeps the clone next to
+# the config it becomes, and the symlink still points at it, so backups and
+# setup/version.sh are unchanged.
+REPO="${CLOWK_DIR:-$HOME/.config/clowk-lazyvim}"
+
+self="${BASH_SOURCE[0]:-}"
+self_repo=""
+[[ -f "$self" ]] && self_repo="$(cd "$(dirname "$self")/.." && pwd)"
+
+if [[ "$self_repo" != "$REPO" ]]; then
+  # Running from a clone somewhere else -- a development checkout, say. Say so,
+  # because the install is about to point at $REPO and not at the files being
+  # read right now. CLOWK_DIR is the way to install from this one instead.
+  if [[ -n "$self_repo" ]]; then
+    printf '\n\033[1;33mnote:\033[0m running from %s, but installing to %s\n' "$self_repo" "$REPO"
+    printf '      to install from this clone instead: CLOWK_DIR=%s %s\n' "$self_repo" "$self"
+  fi
 
   command -v git >/dev/null 2>&1 ||
     { printf 'error: git is required to bootstrap. Install the Xcode command line tools: xcode-select --install\n' >&2; exit 1; }
@@ -59,8 +74,8 @@ else
     git clone "$REPO_URL" "$REPO"
   fi
 
-  # Re-run from inside the clone, where BASH_SOURCE exists and every path below
-  # resolves. exec so this process is replaced and the script runs exactly once.
+  # Re-run from inside the clone, where every path below resolves. exec so this
+  # process is replaced and the script body runs exactly once.
   exec bash "$REPO/setup/install.sh" "$@"
 fi
 
