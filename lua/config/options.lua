@@ -45,6 +45,16 @@ opt.keymodel = { "startsel", "stopsel" }
 vim.g.lazyvim_ruby_lsp = "ruby_lsp"
 vim.g.lazyvim_ruby_formatter = "rubocop"
 
+-- voodu manifests are HCL. The extension is not registered anywhere, so without
+-- this they open as plain text.
+--
+-- This has to live in options (loaded before lazy) rather than in autocmds,
+-- which LazyVim defers to VeryLazy -- by then the first file's filetype has
+-- already been decided.
+vim.filetype.add({
+  extension = { voodu = "hcl" },
+})
+
 -- Machine-local overrides, untracked (see .gitignore and the README).
 -- Optional: pcall so a missing file is not an error.
 pcall(require, "config.local")
