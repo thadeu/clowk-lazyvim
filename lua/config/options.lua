@@ -45,6 +45,23 @@ opt.keymodel = { "startsel", "stopsel" }
 vim.g.lazyvim_ruby_lsp = "ruby_lsp"
 vim.g.lazyvim_ruby_formatter = "rubocop"
 
+-- AI completions as inline ghost text, not as rows in the completion menu.
+--
+-- This one flag is what makes Copilot behave the way it does in VSCode and
+-- Cursor: the suggestion is drawn ahead of the cursor in grey and <Tab> takes
+-- it. LazyVim defaults it to true, which instead hides Copilot inside the
+-- blink.cmp popup among the LSP entries, where a multi-line suggestion cannot
+-- be shown at all.
+--
+-- Three separate settings read it, which is why it is a global and not an
+-- option on one plugin: copilot.lua turns its own ghost text on (`suggestion`),
+-- blink.cmp turns ITS ghost text off so the two do not draw over each other,
+-- and blink's <Tab> becomes "accept the AI suggestion, otherwise fall through".
+--
+-- Like the Ruby settings above, this must be set before lazy.nvim starts -- the
+-- extras read it while their specs are being evaluated.
+vim.g.ai_cmp = false
+
 -- voodu manifests are HCL. The extension is not registered anywhere, so without
 -- this they open as plain text.
 --

@@ -34,6 +34,10 @@ require("lazy").setup({
     { import = "lazyvim.plugins.extras.editor.harpoon2" },
     -- PRs and issues inside the editor (see lua/plugins/octo.lua)
     { import = "lazyvim.plugins.extras.util.octo" },
+    -- AI autocomplete: Copilot ghost text on <Tab> (see lua/plugins/copilot.lua).
+    -- Claude drives the commit messages instead -- see lua/plugins/claude-commit.lua
+    -- for why the two jobs went to two different engines.
+    { import = "lazyvim.plugins.extras.ai.copilot" },
     -- import/override with your plugins
     { import = "plugins" },
   },

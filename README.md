@@ -34,7 +34,7 @@ Running `setup/install.sh` from a clone that is not the target still installs to
 the target — it says so and carries on. That is what `CLOWK_DIR` is for when you
 keep a development checkout somewhere else.
 
-Homebrew is the only thing you install yourself. The script is idempotent —
+Homebrew's the only thing you install yourself. The script is idempotent —
 re-run it any time — and it:
 
 1. installs the missing Homebrew dependencies, and only those, upgrading
@@ -135,6 +135,8 @@ One feature each. `--minimal` skips them entirely.
 | --- | --- |
 | **lazygit** | `<leader>gg`. Commit graph, interactive rebase, stage-by-hunk |
 | **gh** | the PR/issue pickers and `octo.nvim`. Needs `gh auth login` |
+| **claude** | `<leader>gm` (commit messages) and `cmd+option+b` (the sidebar). Uses your Claude Code subscription — no API key |
+| a **Copilot** account | `Tab` autocomplete. Free up to 2000 completions a month. Needs `:Copilot auth` once, and node, which the TypeScript stack already installs |
 | **mermaid-cli** (`mmdc`) | Mermaid diagrams rendered inline in markdown buffers |
 | **imagemagick** (`magick`) | inline svg, pdf and raster images. Not needed for Mermaid |
 
@@ -305,6 +307,7 @@ git remote, so a self-hosted instance needs no extra configuration.
 | `<leader>gvb` | diffview of your changes vs base branch | `lua/plugins/git.lua` |
 | `<leader>gvf` / `<leader>gvF` | file / branch history (diffview) | `lua/plugins/git.lua` |
 | `<leader>gvc` or `q` | close diffview | `lua/plugins/git.lua` |
+| `<leader>gm` | write the commit message with Claude | `lua/plugins/claude-commit.lua` |
 
 ### Other
 
@@ -315,6 +318,92 @@ git remote, so a self-hosted instance needs no extra configuration.
 | `<leader>uw` | toggle wrap |
 | `<leader>uf` | toggle format-on-save |
 | `zs` / `ze` / `zH` / `zL` | manual horizontal scrolling |
+
+## AI
+
+Two features, two engines, on purpose.
+
+| Key | Action | Engine |
+| --- | --- | --- |
+| (as you type) | grey ghost text ahead of the cursor | Copilot |
+| `Tab` | accept the suggestion | Copilot |
+| `option+]` / `option+[` | next / previous alternative | Copilot |
+| `ctrl+]` | dismiss the suggestion | Copilot |
+| `<leader>uP` | turn suggestions off / back on | Copilot |
+| `<leader>gm` | write the commit message | Claude |
+| `cmd+option+b` | Claude Code in a right sidebar | Claude |
+
+### Why two engines
+
+Autocomplete and "write me a commit message" look like one feature and are not.
+
+Completion fires on every pause in typing and is only useful under ~300ms, which
+rules out a general-purpose model. Claude is not trained for fill-in-the-middle,
+and reaching it for this would need an `ANTHROPIC_API_KEY` billed per token —
+**separate from the Claude Code subscription** — so every keystroke would cost
+money to answer slower. Copilot's model is small, built for this one job, and
+free up to 2000 completions a month.
+
+A commit message is the opposite trade: one deliberate keypress, a few seconds,
+and the quality of the answer is the whole point. That is Claude's, and it runs
+through the `claude` CLI already on `PATH` — the same binary and the same
+subscription as the sidebar — so it costs nothing per call and needs no key.
+
+### Autocomplete
+
+`vim.g.ai_cmp = false` in `lua/config/options.lua` is what makes this behave the
+way it does in VSCode. LazyVim defaults it to `true`, which hides Copilot inside
+the blink.cmp popup among the LSP entries — where a multi-line suggestion cannot
+be shown at all. With it off, three things line up: copilot.lua draws its own
+ghost text, blink.cmp turns *its* ghost text off so the two do not overlap, and
+blink's `Tab` becomes "accept the AI suggestion, otherwise stay an ordinary Tab".
+
+`Tab` and `Enter` never compete: `Tab` is always Copilot, `Enter` is always the
+completion menu. Nothing is ambiguous, which is why the suggestion and the menu
+are allowed to be on screen at once.
+
+First run needs `:Copilot auth` (a browser and a device code); the installer
+runs it once. `:Copilot status` says whether it took. Copilot leaves `gitcommit`
+buffers alone by default — Claude owns those — and also `yaml`, which you can
+re-enable with `filetypes = { yaml = true }` in `lua/plugins/copilot.lua` if you
+write a lot of CI.
+
+### Commit messages
+
+`<leader>gm` is VSCode's sparkle button, and it means the same thing in the two
+places you commit from:
+
+- **in the commit editor**, it writes the message in above git's comment block,
+  leaving the block (and the diff under it, on `commit --verbose`) untouched.
+  This is the one that matters day to day: `<leader>gg` opens lazygit, `C` there
+  opens the commit editor, and snacks starts lazygit with
+  `editPreset = "nvim-remote"` — so that editor is not a nested Neovim, it is a
+  real buffer in the Neovim you are already sitting in.
+- **anywhere else**, it opens a commit buffer of its own, already filled in.
+  `ctrl+s` commits, `q` discards. Nothing is written to disk either way: the
+  message goes to `git commit -F -` on stdin.
+
+`:ClaudeCommit` is the same thing as a command.
+
+It describes the **staged** diff, and only that. `git diff HEAD` is deliberately
+not a fallback — describing unstaged work the commit will not contain is worse
+than saying nothing, so with an empty index it tells you to stage first. The one
+exception is an amend: git will not open an editor with nothing to commit, so an
+empty index *in a commit buffer* means `--amend`, and there it describes `HEAD`.
+
+The prompt sends the last 15 subjects from `git log` as the style reference, and
+that single detail is what does most of the work. Nothing describes a project's
+commit conventions as accurately as its own log: with it the messages come back
+carrying this repo's `feat(tmux):` prefixes and its habit of naming the rejected
+alternative, and without it they come back in generic house style.
+
+The call is `sonnet` at `--effort low`, which answers in about 5 seconds.
+Measured on this repo: the same call at the default effort takes ~30s for a
+message no better, and `haiku` manages to be both slower (~16s) and worse — it
+dropped the Conventional Commits prefix every subject here carries. `--safe-mode`
+drops CLAUDE.md, skills, hooks and MCP servers for the call, which is mostly
+latency but also keeps the output from depending on which project you happen to
+be sitting in.
 
 ## Breadcrumb
 
@@ -512,9 +601,10 @@ lazy-lock.json                exact plugin commits
 colors/clowk-night.lua        colorscheme matching the Ghostty theme
 lua/config/
   lazy.lua                    extras: typescript, tailwind, prisma, json,
-                              ruby, docker, yaml, markdown, harpoon2, octo
+                              ruby, docker, yaml, markdown, harpoon2, octo,
+                              copilot
   keymaps.lua                 cmd+ shortcuts, horizontal scroll off, blame toggle
-  options.lua                 sidescrolloff / sidescroll, ruby lsp choice
+  options.lua                 sidescrolloff / sidescroll, ruby lsp, ai_cmp
   autocmds.lua                (empty -- kept for your own autocmds)
 lua/plugins/
   git.lua                     inline blame, diffview
@@ -523,6 +613,8 @@ lua/plugins/
   harpoon.lua                 note on harpoon vs bufferline
   breadcrumb.lua              dropbar: VSCode-style path in the winbar
   claude.lua                  cmd+option+b: Claude Code in a right sidebar
+  claude-commit.lua           <leader>gm: the commit message, written by Claude
+  copilot.lua                 Tab autocomplete: ghost text, and why not Claude
   colorscheme.lua
 setup/
   install.sh                  one-shot installer, idempotent
@@ -562,6 +654,10 @@ of this repo — it is an editor config, not a full dotfiles setup.
 Also not included: a debugger setup. `nvim-dap` is noticeably weaker than
 VSCode's debugger for Node and React; keeping VSCode around just for debugging
 sessions, or using `node --inspect` with Chrome DevTools, is the pragmatic call.
+
+Nor is Claude on `Tab`. It is the obvious thing to want, given the rest of this
+config, and it is the wrong trade — see [Why two engines](#why-two-engines).
+Copilot has that key; Claude has everything where thinking beats latency.
 
 ## Credits
 
