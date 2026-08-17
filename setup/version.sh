@@ -43,35 +43,23 @@ install_ghostty_keybinds() {
   mv "$tmp" "$GHOSTTY_DIR/config"
 }
 
-# The cmd+j popup lives in ~/.tmux.conf, outside the repo just like the Ghostty
-# keybinds, so a rollback has to re-graft it as well. A version that predates
-# setup/tmux/tmux.conf gets the block REMOVED rather than left behind: rolling
-# back means the machine ends up in the state that version was tested in.
-install_tmux_block() {
+# ~/.tmux.conf lives outside the repo, just like the Ghostty keybinds, so a
+# rollback has to reinstall it too -- whole, the way setup/install.sh does, and
+# keeping the current one next to it.
+#
+# A version that predates setup/tmux/tmux.conf leaves the file alone: there is
+# nothing in that version to restore, and deleting a tmux config to honour a
+# rollback would be a worse surprise than an extra keybind.
+install_tmux_conf() {
   command -v tmux >/dev/null 2>&1 || return 0
-  [[ -f "$HOME/.tmux.conf" || -f "$REPO/setup/tmux/tmux.conf" ]] || return 0
-
-  local tmp kept
-  tmp="$(mktemp)"
-  kept=""
+  [[ -f "$REPO/setup/tmux/tmux.conf" ]] || return 0
+  cmp -s "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf" && return 0
 
   if [[ -f "$HOME/.tmux.conf" ]]; then
-    kept="$(sed '/^# >>> clowk-lazyvim >>>$/,/^# <<< clowk-lazyvim <<<$/d' "$HOME/.tmux.conf")"
+    mv "$HOME/.tmux.conf" "$HOME/.tmux.conf.backup-$(date +%Y%m%d-%H%M%S)"
   fi
 
-  {
-    if [[ -n "$kept" ]]; then
-      printf '%s\n\n' "$kept"
-    fi
-
-    # The block only -- the top half of that file is personal preference, which
-    # setup/install.sh writes just once, onto a machine with no config yet.
-    if [[ -f "$REPO/setup/tmux/tmux.conf" ]]; then
-      sed -n '/^# >>> clowk-lazyvim >>>$/,/^# <<< clowk-lazyvim <<<$/p' "$REPO/setup/tmux/tmux.conf"
-    fi
-  } >"$tmp"
-
-  mv "$tmp" "$HOME/.tmux.conf"
+  cp "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
 }
 
 cmd_status() {
@@ -125,8 +113,8 @@ cmd_use() {
   install_ghostty_keybinds
   info "restart Ghostty, or press cmd+shift+, to reload it"
 
-  step "Re-applying the tmux popup of this version"
-  install_tmux_block
+  step "Re-installing the tmux config of this version"
+  install_tmux_conf
   info "tmux source-file ~/.tmux.conf to pick it up in a running session"
 
   cat <<EOF

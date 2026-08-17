@@ -103,9 +103,9 @@ die() {
 # file the machine also owns, leaving everything else in it alone. Replacing the
 # block instead of appending is what makes a re-run idempotent.
 #
-# The block always lands LAST, which ~/.tmux.conf depends on: tpm loads plugins
-# where it is called, and a theme like dracula turns the status bar back on, so
-# anything placed above it is silently undone.
+# Used for ~/.zshrc, which belongs to you: the wrapper is a handful of lines in
+# a file full of your own. ~/.tmux.conf goes the other way and is installed
+# whole -- see the tmux step below for why.
 graft_block() {
   local src="$1" dst="$2" tmp kept
   tmp="$(mktemp)"
@@ -358,24 +358,43 @@ fi
 step "Installing the tmux popup and the Neovim wrapper"
 
 if command -v tmux >/dev/null 2>&1; then
-  if [[ -f "$HOME/.tmux.conf" ]]; then
-    graft_block "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
-    info "merged the cmd+j popup into ~/.tmux.conf, your own settings untouched"
-  else
-    cp "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
-    info "installed ~/.tmux.conf"
+  # The whole file, not a grafted block: a second machine should come out like
+  # the first, splits and plugins included. Whatever was there is kept next to
+  # it rather than merged, because merging two tmux configs means two `run tpm`
+  # lines and a status bar fighting over who turns it off.
+  if [[ -f "$HOME/.tmux.conf" ]] && ! cmp -s "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"; then
+    tmux_backup="$HOME/.tmux.conf.backup-$(date +%Y%m%d-%H%M%S)"
+    mv "$HOME/.tmux.conf" "$tmux_backup"
+    info "your previous config is at $(basename "$tmux_backup")"
   fi
 
-  # The shipped config ends on `run tpm`, so without the plugin manager that
-  # line sources nothing. Cloning it is all this can do unattended: tpm's own
-  # bin/install_plugins waits for a tmux client and hangs when there is none
-  # (measured), which is why the plugins stay one keypress away.
-  if grep -q 'plugins/tpm/tpm' "$HOME/.tmux.conf" && [[ ! -d "$HOME/.tmux/plugins/tpm" ]]; then
+  cp "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
+  info "installed ~/.tmux.conf"
+
+  # The config ends on `run tpm`, which sources nothing without the plugin
+  # manager itself.
+  if [[ ! -d "$HOME/.tmux/plugins/tpm" ]]; then
     if git clone --depth 1 -q https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"; then
-      info "cloned tpm -- press prefix + I inside tmux to install the plugins"
+      info "cloned tpm"
     else
       warn "could not clone tpm -- the plugins listed in ~/.tmux.conf will not load"
     fi
+  fi
+
+  # tpm's own installer hangs when it runs with no tmux client attached, so it
+  # gets one: a detached session on a throwaway socket, whose only command IS
+  # the installer. The socket keeps this away from any server already running.
+  if [[ -x "$HOME/.tmux/plugins/tpm/bin/install_plugins" ]]; then
+    tmux -L clowk-install -f "$HOME/.tmux.conf" new-session -d \
+      "$HOME/.tmux/plugins/tpm/bin/install_plugins" 2>/dev/null || true
+
+    for _ in $(seq 1 60); do
+      tmux -L clowk-install has-session 2>/dev/null || break
+      sleep 1
+    done
+
+    tmux -L clowk-install kill-server 2>/dev/null || true
+    info "tmux plugins: $(find "$HOME/.tmux/plugins" -maxdepth 1 -mindepth 1 -type d | wc -l | tr -d ' ') installed"
   fi
 
   if tmux source-file "$HOME/.tmux.conf" 2>/dev/null; then

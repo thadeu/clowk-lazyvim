@@ -253,15 +253,18 @@ Three properties worth knowing, all in `setup/tmux/tmux.conf`:
 Neovim's float is still mapped, and answers `cmd+j` when you are not in tmux — on
 a machine without tmux nothing about the key changes.
 
-`setup/tmux/tmux.conf` is a whole tmux config, split like the Ghostty one: the
-top half is personal preference — plugins, colours, splits — and the installer
-writes it only onto a machine with no `~/.tmux.conf`. Where one already exists it
-grafts nothing but the marked block at the end, so your own settings survive.
+`setup/tmux/tmux.conf` is installed **whole**, unlike the Ghostty config, which
+is merged into whatever is already on the machine. A tmux config does not merge:
+two of them means two `run tpm` lines and a status bar fought over by both. Any
+existing `~/.tmux.conf` is moved to `~/.tmux.conf.backup-<timestamp>` and the
+repo's takes its place, so a second machine ends up with the splits, the colours
+and the plugins — not just the parts this config needs.
 
-The shipped config ends on `run tpm`, so the installer clones the plugin manager
-when it is missing. Installing the plugins themselves stays manual: `prefix + I`
-inside tmux. tpm's own `bin/install_plugins` waits for a tmux client and hangs
-with none attached, which makes it useless to an unattended script.
+The installer also clones tpm and installs the plugins. tpm's own
+`bin/install_plugins` hangs when it runs with no tmux client attached, so it gets
+one: a detached session on a throwaway socket whose only command is the
+installer. Takes about ten seconds, and the socket keeps it away from any tmux
+server you already have running.
 
 ### LSP (LazyVim defaults)
 
@@ -526,7 +529,7 @@ setup/
   version.sh                  release / roll back, on git tags
   mason.lua                   installs the language servers and waits for them
   ghostty/                    terminal config: cmd+ keybinds, theme, typography
-  tmux/                       full tmux config; only its marked block is grafted
+  tmux/                       the whole ~/.tmux.conf: popup, splits, plugins
   zsh/                        the nvim wrapper, grafted into ~/.zshrc
 ```
 
