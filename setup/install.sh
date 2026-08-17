@@ -18,8 +18,10 @@
 #
 # Dependencies come in three tiers, and the script treats them differently:
 #
-#   CORE      Homebrew, neovim 0.11+, ripgrep, fd.
+#   CORE      Homebrew, neovim 0.11+, ripgrep, fd, tmux.
 #             The config does not work without them, so a failure here aborts.
+#             tmux is the one that degrades rather than breaks: it hosts the
+#             cmd+j popup, and without it cmd+j falls back to Neovim's float.
 #
 #   STACK     node 20+ (TypeScript), ruby 3.2+ (Rails), a Nerd Font, Ghostty.
 #             Each one gates a slice of the setup. A missing one SKIPS that
@@ -97,6 +99,35 @@ die() {
   exit 1
 }
 
+# graft_block <source> <target> -- put this repo's marked block into a config
+# file the machine also owns, leaving everything else in it alone. Replacing the
+# block instead of appending is what makes a re-run idempotent.
+#
+# The block always lands LAST, which ~/.tmux.conf depends on: tpm loads plugins
+# where it is called, and a theme like dracula turns the status bar back on, so
+# anything placed above it is silently undone.
+graft_block() {
+  local src="$1" dst="$2" tmp kept
+  tmp="$(mktemp)"
+  kept=""
+
+  if [[ -f "$dst" ]]; then
+    kept="$(sed '/^# >>> clowk-lazyvim >>>$/,/^# <<< clowk-lazyvim <<<$/d' "$dst")"
+  fi
+
+  {
+    # `$(...)` drops every trailing newline, so the blank separator below is
+    # written exactly once no matter how many times this runs.
+    if [[ -n "$kept" ]]; then
+      printf '%s\n\n' "$kept"
+    fi
+
+    cat "$src"
+  } >"$tmp"
+
+  mv "$tmp" "$dst"
+}
+
 # version_lt A B -- true when A is strictly older than B. macOS ships bash 3.2,
 # so this is `sort -V` rather than anything fancier.
 version_lt() {
@@ -121,7 +152,7 @@ installed_casks="$(brew list --cask -1)"
 
 need_core=()
 
-for pkg in neovim ripgrep fd; do
+for pkg in neovim ripgrep fd tmux; do
   grep -qx "$pkg" <<<"$installed_formulae" || need_core+=("$pkg")
 done
 
@@ -142,7 +173,7 @@ if version_lt "$nvim_version" "$MIN_NVIM"; then
   version_lt "$nvim_version" "$MIN_NVIM" && die "Neovim is still $nvim_version, need $MIN_NVIM+"
 fi
 
-info "neovim $nvim_version, ripgrep, fd"
+info "neovim $nvim_version, ripgrep, fd, tmux"
 
 # --- Stack runtimes ---------------------------------------------------------
 
@@ -319,11 +350,38 @@ else
   warn "ghostty +validate-config failed -- run it by hand to see why"
 fi
 
+# --- tmux and the shell -----------------------------------------------------
+
+step "Installing the tmux popup and the Neovim wrapper"
+
+if command -v tmux >/dev/null 2>&1; then
+  graft_block "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
+  info "merged the cmd+j popup into ~/.tmux.conf, your own settings untouched"
+
+  if tmux source-file "$HOME/.tmux.conf" 2>/dev/null; then
+    info "reloaded the running tmux server"
+  fi
+else
+  warn "tmux not found -- cmd+j falls back to Neovim's own float"
+fi
+
+# The wrapper is what puts Neovim inside tmux in the first place, so the popup
+# has a tmux to be drawn by. Nothing else in the config depends on the shell.
+case "$SHELL" in
+*/zsh)
+  graft_block "$REPO/setup/zsh/nvim-tmux.zsh" "$HOME/.zshrc"
+  info "merged the nvim wrapper into ~/.zshrc -- open a new tab to pick it up"
+  ;;
+*)
+  warn "\$SHELL is $SHELL, not zsh -- port setup/zsh/nvim-tmux.zsh by hand"
+  ;;
+esac
+
 # --- Summary ----------------------------------------------------------------
 
 step "Summary"
 
-printf '    %-12s %s\n' "core" "neovim $nvim_version, ripgrep, fd"
+printf '    %-12s %s\n' "core" "neovim $nvim_version, ripgrep, fd, tmux"
 printf '    %-12s %s\n' "typescript" "$STACK_TS"
 printf '    %-12s %s\n' "rails" "$STACK_RUBY"
 printf '    %-12s %s\n' "ghostty" "$STACK_GHOSTTY"

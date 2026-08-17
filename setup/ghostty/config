@@ -46,7 +46,12 @@ mouse-scroll-multiplier = 2.0
 # Note: these bindings apply to all of Ghostty, not only when Neovim is focused.
 # In a plain shell they just send the sequence to the shell (harmless).
 #
-# super+j = toggle terminal
+# super+j = toggle the floating terminal.
+#
+# Forwarded to Neovim rather than bound to Ghostty's own `toggle_quick_terminal`,
+# which was tried and rejected: the quick terminal is a single surface for the
+# whole app, created once and reused, so its cwd is frozen at creation instead
+# of following the project, and it answers the key from any Ghostty window.
 keybind = super+j=esc:j
 # super+w = close buffer
 keybind = super+w=esc:w

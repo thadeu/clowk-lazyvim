@@ -24,9 +24,24 @@ local function map_ni(lhs, fn, desc)
   end, { desc = desc })
 end
 
--- cmd+j: toggle the terminal. Includes terminal mode, so it closes from inside.
+-- cmd+j: toggle the terminal, as a float centered over the editor. Includes
+-- terminal mode, so it closes from inside.
+--
+-- This is the fallback path. Inside tmux the key never reaches Neovim: tmux
+-- grabs M-j first and opens a popup instead (see the block in ~/.tmux.conf),
+-- which is a real pty and therefore the only one of the two where a
+-- full-screen TUI like Claude Code redraws itself correctly. Outside tmux this
+-- float is what answers, so the key means the same thing either way.
 map({ "n", "i", "t" }, "<M-j>", function()
-  Snacks.terminal.toggle(nil, { cwd = LazyVim.root() })
+  Snacks.terminal.toggle(nil, {
+    cwd = LazyVim.root(),
+    win = {
+      position = "float",
+      width = 0.8,
+      height = 0.8,
+      border = "rounded",
+    },
+  })
 end, { desc = "Terminal (toggle)" })
 
 -- cmd+w: close the buffer WITHOUT tearing down the window layout (`:bd` would).

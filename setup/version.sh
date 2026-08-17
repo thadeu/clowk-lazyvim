@@ -43,6 +43,35 @@ install_ghostty_keybinds() {
   mv "$tmp" "$GHOSTTY_DIR/config"
 }
 
+# The cmd+j popup lives in ~/.tmux.conf, outside the repo just like the Ghostty
+# keybinds, so a rollback has to re-graft it as well. A version that predates
+# setup/tmux/tmux.conf gets the block REMOVED rather than left behind: rolling
+# back means the machine ends up in the state that version was tested in.
+install_tmux_block() {
+  command -v tmux >/dev/null 2>&1 || return 0
+  [[ -f "$HOME/.tmux.conf" || -f "$REPO/setup/tmux/tmux.conf" ]] || return 0
+
+  local tmp kept
+  tmp="$(mktemp)"
+  kept=""
+
+  if [[ -f "$HOME/.tmux.conf" ]]; then
+    kept="$(sed '/^# >>> clowk-lazyvim >>>$/,/^# <<< clowk-lazyvim <<<$/d' "$HOME/.tmux.conf")"
+  fi
+
+  {
+    if [[ -n "$kept" ]]; then
+      printf '%s\n\n' "$kept"
+    fi
+
+    if [[ -f "$REPO/setup/tmux/tmux.conf" ]]; then
+      cat "$REPO/setup/tmux/tmux.conf"
+    fi
+  } >"$tmp"
+
+  mv "$tmp" "$HOME/.tmux.conf"
+}
+
 cmd_status() {
   local tag ref dirty
   # --always so a commit with no tag still prints something usable.
@@ -93,6 +122,10 @@ cmd_use() {
   step "Re-applying the Ghostty keybinds of this version"
   install_ghostty_keybinds
   info "restart Ghostty, or press cmd+shift+, to reload it"
+
+  step "Re-applying the tmux popup of this version"
+  install_tmux_block
+  info "tmux source-file ~/.tmux.conf to pick it up in a running session"
 
   cat <<EOF
 

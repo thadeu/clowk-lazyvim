@@ -110,6 +110,7 @@ The config does not work without these, and the script installs them.
 | **Homebrew** | the only thing you have to install yourself |
 | **neovim** 0.11+ | `dropbar.nvim` requires it, and the bundled `nvim-treesitter` is the `main` branch. The script upgrades an older Homebrew neovim on its own. Developed on 0.12 |
 | **ripgrep**, **fd** | the LazyVim picker greps and finds files with them. Without them `<leader><space>` and `<leader>/` are slow or empty |
+| **tmux** | hosts the `cmd+j` popup. The one core dependency that degrades instead of breaking: without it `cmd+j` falls back to Neovim's own float |
 
 ### Stack — a failure skips that slice
 
@@ -207,7 +208,7 @@ mode, not select mode: in select mode any printable key replaces the selection
 (VSCode's behaviour), which would put every Vim operator out of reach.
 | `cmd+c` / `cmd+x` | copy / cut to the system clipboard (whole line with no selection) |
 | `cmd+v` | paste — Ghostty's own, not remapped (see below) |
-| `cmd+j` | toggle terminal |
+| `cmd+j` | toggle a floating terminal, centered, at the project root — a tmux popup ([why](#cmdj-is-a-tmux-popup-not-a-neovim-terminal)) |
 | `cmd+w` | close buffer (keeps the window layout) |
 | `cmd+n` | new buffer |
 | `cmd+\|` | vertical split |
@@ -223,6 +224,34 @@ break pasting in a plain shell for nothing.
 `cmd+c` does need forwarding, though: Ghostty would copy the *terminal*
 selection, which is not Neovim's visual selection. Mouse selections still land on
 the clipboard by themselves, via `copy-on-select`.
+
+### cmd+j is a tmux popup, not a Neovim terminal
+
+Neovim's built-in terminal is a fine place to run `git log`. It is a bad place to
+run a full-screen TUI: Claude Code, lazygit at the wrong moment, anything that
+redraws its own frame. The redraw lands a row off and the text you type appears
+on the box border instead of inside it.
+
+So `cmd+j` opens a **tmux popup** instead — a pty tmux owns and draws over the
+pane. Neovim is not in the loop at all, and the TUI inside gets an ordinary
+terminal to draw on.
+
+That only works if Neovim is *inside* tmux, which is what the `nvim` wrapper in
+`setup/zsh/nvim-tmux.zsh` is for: typing `nvim .` starts a throwaway tmux session
+with Neovim in it. Plain shell tabs stay outside tmux, keeping Ghostty's own
+scrollback and image protocol. Quitting Neovim ends the session.
+
+Three properties worth knowing, all in `setup/tmux/tmux.conf`:
+
+- **One popup per directory.** The scratch session is named after the path, so
+  `packages/core/src` and `packages/hono/src` do not share a shell.
+- **It survives.** Closing the popup detaches instead of killing, and the session
+  outlives Neovim — quit the editor, come back, and the `claude` you left running
+  is still there.
+- **The same key closes it.** Inside the popup `cmd+j` detaches that client.
+
+Neovim's float is still mapped, and answers `cmd+j` when you are not in tmux — on
+a machine without tmux nothing about the key changes.
 
 ### LSP (LazyVim defaults)
 
@@ -360,6 +389,18 @@ answers `14`. Every guide tells you to install into `~/.config/ghostty`, and on
 any machine that has already opened Ghostty's own config editor that is a no-op
 you can stare at for a while.
 
+**tpm loads plugins where it is called, so "keep tpm last" cuts both ways.**
+`set -g status off` placed above `run '~/.tmux/plugins/tpm/tpm'` in
+`~/.tmux.conf` is silently undone: dracula turns the status bar back on while
+tpm sources it, and `tmux show -g status` answers `on`. The block this repo
+grafts is appended *below* the tpm line for that reason — the one thing that has
+to override a plugin cannot run before it.
+
+**A tmux popup is a pty; Neovim's terminal is an emulator inside an editor.**
+That difference is why `cmd+j` is a popup. In Neovim's terminal buffer, Claude
+Code's input box redraws a row off and typed text lands on the border. The same
+version in a tmux popup, and in a plain terminal tab, draws correctly.
+
 **Buffer switching costs nothing on the terminal side.**
 `option+1..9` needs no Ghostty keybind at all: `macos-option-as-alt` already
 makes option arrive as Alt, so `option+1` reaches Neovim as `<M-1>` on its own.
@@ -475,6 +516,8 @@ setup/
   version.sh                  release / roll back, on git tags
   mason.lua                   installs the language servers and waits for them
   ghostty/                    terminal config: cmd+ keybinds, theme, typography
+  tmux/                       the cmd+j popup, grafted into ~/.tmux.conf
+  zsh/                        the nvim wrapper, grafted into ~/.zshrc
 ```
 
 ## Versions and rollback
