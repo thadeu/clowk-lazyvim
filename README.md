@@ -253,6 +253,16 @@ Three properties worth knowing, all in `setup/tmux/tmux.conf`:
 Neovim's float is still mapped, and answers `cmd+j` when you are not in tmux — on
 a machine without tmux nothing about the key changes.
 
+`setup/tmux/tmux.conf` is a whole tmux config, split like the Ghostty one: the
+top half is personal preference — plugins, colours, splits — and the installer
+writes it only onto a machine with no `~/.tmux.conf`. Where one already exists it
+grafts nothing but the marked block at the end, so your own settings survive.
+
+The shipped config ends on `run tpm`, so the installer clones the plugin manager
+when it is missing. Installing the plugins themselves stays manual: `prefix + I`
+inside tmux. tpm's own `bin/install_plugins` waits for a tmux client and hangs
+with none attached, which makes it useless to an unattended script.
+
 ### LSP (LazyVim defaults)
 
 | Key | Action |
@@ -516,7 +526,7 @@ setup/
   version.sh                  release / roll back, on git tags
   mason.lua                   installs the language servers and waits for them
   ghostty/                    terminal config: cmd+ keybinds, theme, typography
-  tmux/                       the cmd+j popup, grafted into ~/.tmux.conf
+  tmux/                       full tmux config; only its marked block is grafted
   zsh/                        the nvim wrapper, grafted into ~/.zshrc
 ```
 

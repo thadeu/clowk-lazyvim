@@ -122,7 +122,10 @@ graft_block() {
       printf '%s\n\n' "$kept"
     fi
 
-    cat "$src"
+    # Only the block, never the whole source: setup/tmux/tmux.conf is a full
+    # config whose top half is personal preference, and that half belongs to the
+    # machine that has no ~/.tmux.conf yet -- not to one that already does.
+    sed -n '/^# >>> clowk-lazyvim >>>$/,/^# <<< clowk-lazyvim <<<$/p' "$src"
   } >"$tmp"
 
   mv "$tmp" "$dst"
@@ -355,8 +358,25 @@ fi
 step "Installing the tmux popup and the Neovim wrapper"
 
 if command -v tmux >/dev/null 2>&1; then
-  graft_block "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
-  info "merged the cmd+j popup into ~/.tmux.conf, your own settings untouched"
+  if [[ -f "$HOME/.tmux.conf" ]]; then
+    graft_block "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
+    info "merged the cmd+j popup into ~/.tmux.conf, your own settings untouched"
+  else
+    cp "$REPO/setup/tmux/tmux.conf" "$HOME/.tmux.conf"
+    info "installed ~/.tmux.conf"
+  fi
+
+  # The shipped config ends on `run tpm`, so without the plugin manager that
+  # line sources nothing. Cloning it is all this can do unattended: tpm's own
+  # bin/install_plugins waits for a tmux client and hangs when there is none
+  # (measured), which is why the plugins stay one keypress away.
+  if grep -q 'plugins/tpm/tpm' "$HOME/.tmux.conf" && [[ ! -d "$HOME/.tmux/plugins/tpm" ]]; then
+    if git clone --depth 1 -q https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"; then
+      info "cloned tpm -- press prefix + I inside tmux to install the plugins"
+    else
+      warn "could not clone tpm -- the plugins listed in ~/.tmux.conf will not load"
+    fi
+  fi
 
   if tmux source-file "$HOME/.tmux.conf" 2>/dev/null; then
     info "reloaded the running tmux server"

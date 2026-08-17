@@ -64,8 +64,10 @@ install_tmux_block() {
       printf '%s\n\n' "$kept"
     fi
 
+    # The block only -- the top half of that file is personal preference, which
+    # setup/install.sh writes just once, onto a machine with no config yet.
     if [[ -f "$REPO/setup/tmux/tmux.conf" ]]; then
-      cat "$REPO/setup/tmux/tmux.conf"
+      sed -n '/^# >>> clowk-lazyvim >>>$/,/^# <<< clowk-lazyvim <<<$/p' "$REPO/setup/tmux/tmux.conf"
     fi
   } >"$tmp"
 
