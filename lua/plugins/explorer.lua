@@ -15,11 +15,16 @@ return {
         -- The sidebar tree. `exclude` is needed here because, unlike `files`,
         -- the explorer finder has no built-in .git filter -- with hidden = true
         -- the whole .git directory would show up at the top of every repo.
-        explorer = {
+        --
+        -- The layout and the icon row come from lua/config/sidebar.lua, and
+        -- they are set HERE rather than on the call that opens the panel: the
+        -- explorer also opens by itself when Neovim starts on a directory
+        -- (`nvim .`), and that door is snacks', not ours.
+        explorer = vim.tbl_deep_extend("force", {
           hidden = true,
           ignored = true,
           exclude = { ".git" },
-        },
+        }, require("config.sidebar").explorer_source()),
         -- File finder (<leader>ff, <leader><space>, cmd+p). fd/rg already drop
         -- .git themselves.
         files = { hidden = true, ignored = true },

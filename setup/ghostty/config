@@ -35,6 +35,36 @@ mouse-scroll-multiplier = 2.0
 # an existing Ghostty config. Keep the markers intact.
 
 # >>> clowk-lazyvim keybinds >>>
+# --- Nerd Font icons, drawn bigger ---
+#
+# The sidebar's activity bar is three icons, and in a Mono Nerd Font they are
+# drawn to fit INSIDE one cell, which leaves them small next to the text. The
+# glyph size belongs to the terminal -- no editor can scale one -- and this is
+# the knob for it: a percentage added to the maximum height of every nerd font
+# icon (Ghostty 1.2.0 and later).
+#
+# It applies to every icon, so the file icons in the file tree grow with it.
+# Tune the number to taste; it needs a config reload (cmd+shift+,) or a new
+# window, since the font is set up when a surface is created.
+adjust-icon-height = 150%
+
+# If that is not enough, the reason is usually the OTHER axis. In a Nerd Font
+# *Mono* build every icon is squeezed to fit the WIDTH of one cell, so there is
+# no height left to give it. The fix is to draw the icons -- and only the icons
+# -- from the non-Mono build of the same family, where they are cut at full
+# width.
+#
+# Machine-specific, so it ships commented out: run `ghostty +list-fonts` and
+# put the non-Mono family you actually have on the right-hand side. On the
+# machine this was written on that is `MesloLGS NF` (the powerlevel10k build).
+#
+# The gap in the middle is deliberate: U+E0A0-U+E0D7 is Powerline, whose
+# separators are drawn to fill a cell edge to edge. From a non-Mono font they
+# stop lining up and the statusline grows seams.
+#
+# font-codepoint-map = U+E000-U+E09F=MesloLGS NF
+# font-codepoint-map = U+E0D8-U+F8FF=MesloLGS NF
+# font-codepoint-map = U+F0000-U+FFFFD=MesloLGS NF
 # --- Keybinds: forward VSCode's cmd+ shortcuts to Neovim ---
 # `esc:X` sends ESC+X, which Neovim reads as <M-X>.
 #
@@ -83,8 +113,10 @@ keybind = super+z=esc:z
 keybind = super+shift+z=esc:Z
 # super+/ = toggle comment
 keybind = super+slash=esc:/
-# super+shift+f = find and replace across the project
+# super+shift+f = find and replace, in the sidebar
 keybind = super+shift+f=esc:F
+# super+shift+g = source control (the changed files), in the sidebar
+keybind = super+shift+g=esc:G
 # super+c = copy to the system clipboard
 keybind = super+c=esc:c
 # super+x = cut to the system clipboard

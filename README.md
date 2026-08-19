@@ -189,10 +189,11 @@ receives that as `<M-X>`. See `setup/ghostty/config`.
 | Key | Action |
 | --- | --- |
 | `cmd+p` | find file by name or folder — same as `<leader><space>` |
-| `cmd+b` | toggle the file explorer |
+| `cmd+b` | sidebar: the file explorer |
 | `cmd+option+b` | Claude Code in a right sidebar, in the project root |
 | `cmd+f` | grep the project — same as `<leader>/`, the `g` on the start screen |
-| `cmd+shift+f` | find and replace across the project (grug-far) |
+| `cmd+shift+f` | sidebar: find and replace across the project (grug-far) |
+| `cmd+shift+g` | sidebar: source control — the changed files, with each diff in the editor |
 | `cmd+z` / `cmd+shift+z` | undo / redo |
 | `cmd+/` | toggle comment (line, or the selection in visual) |
 | `option+delete` | delete the previous word (insert and `:` / `/` prompts) |
@@ -226,6 +227,124 @@ break pasting in a plain shell for nothing.
 `cmd+c` does need forwarding, though: Ghostty would copy the *terminal*
 selection, which is not Neovim's visual selection. Mouse selections still land on
 the clipboard by themselves, via `copy-on-select`.
+
+### The sidebar
+
+`cmd+b`, `cmd+shift+f` and `cmd+shift+g` are three panels of ONE sidebar, not
+three windows. Only one is ever docked on the left, and the row of icons at the
+top of it switches between them -- with the mouse, since a `winbar` is the one
+part of a window Neovim lets you both draw and click:
+
+```
+├─────────────────────────────────────────┤
+│                                    │  the bar is a WINDOW,
+├─────────────────────────────────────────┤  M.bar_height rows tall
+│  CHANGES                                │
+├─────────────────────────────────────────┤
+│  M apps/…/service.go                    │  the panel
+```
+
+The header names the open panel the way VSCode heads its sections: the project
+directory for the explorer, `SEARCH`, `CHANGES`. It takes the last row, and the
+rule above it takes the one before that, a second rule the very top, and the
+buttons are centred in whatever is left:
+
+| `M.bar_height` | rows |
+| --- | --- |
+| 4 | rule / buttons / rule / label -- the banded VSCode look |
+| 3 | buttons / rule / label |
+| 2 | buttons / label |
+| 1 | buttons |
+
+Three numbers shape the row, all on the module:
+
+| Knob | What it is |
+| --- | --- |
+| `M.bar_pad` | spaces around the icon *inside* a button -- the lit block on the open one is exactly this padding, not a filled third of the bar |
+| `M.bar_gap` | spaces between buttons, and before the first |
+| `M.bar_height` | rows |
+
+What a button *draws* and what it *answers to* are deliberately different: the
+click takes half a gap on each side and every row of the bar except the label,
+so a small block does not mean a small aim.
+
+Each button is a **third of the panel**, not the two columns of a glyph, which
+is what makes them easy to hit. The bar is a real window in the same column
+(`nvim_open_win` with `split = "above"`), so it has height, padding, and a
+divider -- a `winbar` was the first attempt and is always exactly one row.
+
+Two things that took a while to get right, both worth knowing before touching
+this:
+
+- **The click handler is global, not buffer-local.** A buffer-local
+  `<LeftMouse>` on the bar never fires: Neovim resolves the mapping in the
+  buffer that is *already* current, and moving to the clicked window is what the
+  default `<LeftMouse>` does afterwards. So a buffer-local map would only answer
+  clicks made from inside the bar, which is the one place nobody clicks from.
+  It is an `<expr>` map that gives the key back untouched when the click is not
+  on the bar.
+- **A closed picker is not finished.** Its layout keeps a `WinResized` handler
+  alive for one more tick, and taking our window out of the same column reaches
+  it after its list is gone (`list.lua: attempt to index field 'picker'`).
+  Panels close first, and the bar is rebuilt on the next tick.
+
+The glyph itself cannot be scaled from Neovim -- a cell is a cell. Which glyph
+is drawn is `M.icons` in `lua/config/sidebar.lua`; how big it is drawn is
+Ghostty's `adjust-icon-height` and the `font-codepoint-map` block in
+`setup/ghostty/config`.
+
+`lua/plugins/bufferline.lua` keeps the buffer tabs off the sidebar. bufferline
+shifts the tabline by the width of a window whose filetype it recognises, and
+it only ever looks at the TOPMOST window of a column -- which is the bar now,
+not the picker LazyVim names. The bar being the top of that column for all
+three panels, one entry covers them all, grug-far included.
+
+Pressing the key (or clicking the icon) of the panel already on screen closes
+the sidebar. Pressing another one swaps the contents.
+
+There is no filter line over the panel: a tree and a list of changed files are
+there to be read, not typed at. `/` brings the filter in and focuses it, `<esc>`
+puts it away again -- `<esc>` would otherwise close the whole picker, which
+inside a sidebar reads as losing the panel to a typo.
+
+The source control panel is the one worth explaining. The list of changed files
+is narrow, but the **diff is not**:
+
+| Key | What you get |
+| --- | --- |
+| `j` / `k` | the unified diff of the file under the cursor, in the editor window |
+| `<cr>` | the **two-pane diff**: the index on the left, the working tree on the right |
+| `o` | the file itself, no diff |
+
+`<cr>` twice on two different files replaces the diff rather than stacking a
+third pane, and closing the left pane takes the diff mode of the right one with
+it. An untracked file has no other side, so `<cr>` there just opens it.
+
+The file is looked for in the tab rather than assumed to be under the cursor:
+with `preview = "main"` the editor window still holds the preview buffer for a
+tick or two after the jump, the file may already be open in another window, and
+a click leaves the cursor where it clicked. If it never turns up, or the file is
+not in the index, the panel says so instead of doing nothing.
+
+The two panes are built here (`git show :0:<path>` into a scratch buffer) and
+not with `Gitsigns diffthis`, which looks like the ready-made answer and is not:
+gitsigns diffs the buffer you are *already* sitting in, and only once its own
+asynchronous read of the index has finished. On a file opened a millisecond
+earlier it fails with `assertion failed!` inside its async runner, where no
+pcall can reach it.
+
+The panel key is not a plain toggle either. Closed, it opens; open but with the
+cursor elsewhere (right after `<cr>` the cursor is in the diff), it takes you
+back to the panel; open and focused, it closes.
+
+Find and replace is *hidden* rather than closed, so the search text and the
+results survive until the next time you open it.
+
+lazygit is deliberately NOT one of the panels -- it stays the full-screen float
+on `<leader>gg`. Its four panels need the whole window, which is the one thing a
+40-column sidebar cannot give.
+
+The whole thing is `lua/config/sidebar.lua`.
 
 ### cmd+j is a tmux popup, not a Neovim terminal
 
@@ -298,6 +417,7 @@ git remote, so a self-hosted instance needs no extra configuration.
 | `<leader>gd` / `<leader>gD` | diff by hunks / against origin | LazyVim |
 | `<leader>gs` / `<leader>gS` | git status / stash | LazyVim |
 | `<leader>gg` | lazygit | LazyVim |
+| `cmd+shift+g` | changed files in the sidebar, diff in the editor | `lua/config/sidebar.lua` |
 | `<leader>gB` | open current line on GitHub | LazyVim |
 | `<leader>ghs` / `<leader>ghr` / `<leader>ghp` | stage / reset / preview hunk | LazyVim |
 | `]h` / `[h` | next / previous hunk | LazyVim |

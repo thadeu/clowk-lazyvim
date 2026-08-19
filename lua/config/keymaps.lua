@@ -78,10 +78,16 @@ for i = 1, 9 do
   end, "Go to tab " .. i)
 end
 
--- cmd+b: toggle the file explorer, like VSCode's sidebar.
+-- cmd+b / cmd+shift+f / cmd+shift+g: the three sidebar panels, like VSCode's
+-- activity bar. One docked window on the left, and a row of clickable icons at
+-- the top of it that switches between explorer, find-and-replace and git.
+--
+-- Each key toggles ITS panel: pressing the key of the panel already on screen
+-- closes the sidebar, pressing another one swaps the contents. The module that
+-- owns all of it is lua/config/sidebar.lua.
 map_ni("<M-b>", function()
-  Snacks.explorer()
-end, "Explorer (toggle)")
+  require("config.sidebar").toggle("explorer")
+end, "Sidebar: explorer")
 
 -- cmd+p: find files by name or folder. The picker matches against the whole
 -- relative path, so `config/key` finds lua/config/keymaps.lua.
@@ -97,9 +103,36 @@ map_ni("<M-f>", LazyVim.pick("live_grep"), "Grep project")
 
 -- cmd+shift+f: find and replace across the project. grug-far ships with
 -- LazyVim (also on <leader>sr) and edits the results buffer in place.
+--
+-- Docked in the sidebar rather than opened as a half-screen split: closing it
+-- HIDES it, so the search text and the results are still there the next time
+-- the icon is pressed.
 map_ni("<M-F>", function()
-  require("grug-far").open({ prefills = { paths = LazyVim.root() } })
-end, "Find and replace (project)")
+  require("config.sidebar").toggle("search")
+end, "Sidebar: find and replace")
+
+-- cmd+shift+g: the changed files, VSCode's Source Control panel.
+--
+-- The list is narrow, but the diff of the selected file is NOT: the sidebar
+-- layout draws the picker preview in the main editor window, so moving through
+-- the list shows each file's diff where VSCode shows it. <cr> opens the file
+-- itself, and the panel stays open.
+--
+-- lazygit is untouched and still the full-screen float on <leader>gg -- its
+-- four panels need the whole window, which is the one thing a sidebar cannot
+-- give.
+map_ni("<M-G>", function()
+  require("config.sidebar").toggle("git")
+end, "Sidebar: source control")
+
+-- <leader>e: the same explorer panel as cmd+b.
+--
+-- LazyVim binds this straight to Snacks.explorer(), which opens the tree
+-- WITHOUT the icon row -- and, being a second picker on the same source, would
+-- fight the sidebar module over what is open.
+map("n", "<leader>e", function()
+  require("config.sidebar").toggle("explorer")
+end, { desc = "Sidebar: explorer" })
 
 -- cmd+c / cmd+x: copy and cut to the SYSTEM clipboard ("+), so the text is
 -- available to every other app.
