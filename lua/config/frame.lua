@@ -58,7 +58,41 @@ function M.breadcrumb()
 
   local ok, str = pcall(_G.dropbar)
 
-  return ok and str or ""
+  if not ok then
+    return ""
+  end
+
+  -- Lined up with the line NUMBERS, so the gutter and the path share a left
+  -- edge.
+  --
+  -- Where the numbers begin is not a constant: they are right-aligned in their
+  -- field, so a two-digit line starts one column further right than a
+  -- three-digit one, and the field itself moves whenever a sign column appears.
+  -- Rather than guess at any of that, the statuscolumn is RENDERED and the
+  -- first digit found in it -- `nvim_eval_statusline` draws it for whichever
+  -- line is asked for, and the width of everything before that digit is the
+  -- column to start on.
+  --
+  -- The line asked for is the one at the TOP of the window, so the path lines
+  -- up with the numbers actually on screen. The widest number in the file was
+  -- the first answer and it is subtly wrong: the numbers are right-aligned, so
+  -- in a 200 line file viewed at line 20 the widest starts a column further
+  -- left than anything visible, and the path sat one cell off. This moves only
+  -- when the top number gains a digit.
+  --
+  -- Minus one for the edge, which this row draws itself. A window with no
+  -- numbers at all -- the dashboard -- has no digit to find, and falls back to
+  -- the offset of the text.
+  local win = vim.api.nvim_get_current_win()
+  local top = vim.fn.line("w0", win)
+  local gutter = vim.api.nvim_eval_statusline(vim.wo[win].statuscolumn, {
+    winid = win,
+    use_statuscol_lnum = top,
+  }).str
+  local digit = gutter:find("%d")
+  local at = digit and vim.fn.strdisplaywidth(gutter:sub(1, digit - 1)) or vim.fn.getwininfo(win)[1].textoff
+
+  return (" "):rep(math.max(at - 1, 0)) .. str
 end
 
 --- The top edge, which is also the row of buffer tabs: `nvim_bufferline()` is

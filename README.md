@@ -473,10 +473,9 @@ most of the screen on a start page.
 So the right corners are not drawn either. Both rules run to the edge and stop.
 The corner *can* be put there — a winbar and a statusline both reach the last
 column — but nothing can draw the line between them, and a corner with nothing
-hanging off it reads as a box that failed rather than as a frame. The panels
-that do have a right side keep their corners: the tree, because snacks draws it
-a real border, and the icon bar, because those two columns are its own buffer
-text.
+hanging off it reads as a box that failed rather than as a frame. The panels that do have a right side keep their corners: the tree, because
+snacks draws it a real border, and the icon bar, because those two columns are
+its own buffer text.
 
 Three details make the rest cheap:
 
@@ -753,13 +752,21 @@ which is where VSCode has it:
 │  lua › config › frame.lua › set_hl
 ```
 
-Two details keep it inside the frame. dropbar gets **two** columns of left
-padding where it ships one, because the panel's left edge is drawn in front of
-it and dropbar measures its own truncation against the whole window — two cells
-over is all it takes for Neovim to cut a winbar. And the cut is aimed: a `%<`
-right after the edge is the truncation *point*, so a path too long for a narrow
-split loses its leftmost segments instead of its frame. Without it the split came
-out with a `<` where its left edge belongs.
+It starts on the **line numbers**, so the gutter and the path share a left edge.
+Where the numbers begin is not a constant — they are right-aligned in their
+field, so a two-digit line starts a column further right than a three-digit one,
+and the field itself moves when a sign column appears. Rather than guess at any
+of that the statuscolumn is *rendered* and the first digit found in it:
+`nvim_eval_statusline` draws it for whichever line is asked for, and the width of
+everything before that digit is the column to start on. The line asked for is
+the one at the top of the window, so the path lines up with the numbers actually
+on screen; the widest number in the file was the first answer and left the path
+one cell off in any long file scrolled past its first hundred lines. dropbar's
+own left padding is set to zero, because two hands on the same indent fight.
+
+The cut is aimed, too: a `%<` right after the edge is the truncation *point*, so
+a path too long for a narrow split loses its leftmost segments instead of its
+frame. Without it the split came out with a `<` where its left edge belongs.
 
 It builds the path from LSP `documentSymbol`, treesitter and the file path, in
 that order. Every segment is clickable and opens a menu to jump; `<leader>cb`

@@ -49,15 +49,10 @@ return {
       end
 
       return vim.tbl_deep_extend("force", opts or {}, {
-        -- Two columns of padding on the left, where dropbar ships one.
-        --
-        -- The extra one is the frame: lua/config/frame.lua puts the panel's
-        -- left edge in front of this bar, and dropbar measures its own
-        -- truncation against the whole window. Two cells over is all it takes
-        -- for Neovim to cut a winbar -- from the FRONT, which is where the edge
-        -- is -- so the column is handed to dropbar to account for instead, and
-        -- its own `…` marker keeps doing the truncating, which it does better.
-        bar = { padding = { left = 2, right = 1 } },
+        -- No padding on the left: lua/config/frame.lua puts its own there, as
+        -- many columns as the gutter of that window costs, so the path starts
+        -- where the code starts. Two hands on the same indent would fight.
+        bar = { padding = { left = 0, right = 1 } },
         icons = {
           kinds = {
             dir_icon = "",
