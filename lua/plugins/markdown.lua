@@ -58,4 +58,45 @@ return {
       },
     },
   },
+
+  -- markdownlint is off on purpose.
+  --
+  -- The lang.markdown extra wires markdownlint-cli2 in TWICE: as an nvim-lint
+  -- linter, which runs on every save, and as a conform formatter, which runs
+  -- `--fix` whenever one of those diagnostics is open on the buffer. Its rules
+  -- police the SHAPE of the file rather than whether it reads well -- MD013
+  -- line length, MD033 inline HTML, MD024 duplicate headings -- so prose
+  -- written normally lights the buffer up, and the auto-fix then rewrites
+  -- lines nobody touched. Every one of those rewrites lands in `git diff`.
+  --
+  -- What stays: marksman, so broken links and references are still reported,
+  -- and prettier in the conform chain below. prettier is NOT installed by
+  -- setup/mason.lua, so on a clean machine nothing rewrites a markdown buffer
+  -- on save any more -- `:ConformInfo` in a markdown file shows the whole
+  -- chain and which part of it is missing.
+  --
+  -- Removing it here is not enough by itself. setup/mason.lua no longer
+  -- installs the binary, and lua/plugins/mason.lua filters it out of what the
+  -- extra pushes into mason's `ensure_installed`; without that second step it
+  -- reinstalls itself at the next startup.
+  {
+    "mfussenegger/nvim-lint",
+    opts = {
+      linters_by_ft = {
+        markdown = {},
+      },
+    },
+  },
+
+  -- lazy.nvim REPLACES lists rather than merging them, so this is the whole
+  -- formatter chain for markdown, minus markdownlint-cli2.
+  {
+    "stevearc/conform.nvim",
+    opts = {
+      formatters_by_ft = {
+        ["markdown"] = { "prettier", "markdown-toc" },
+        ["markdown.mdx"] = { "prettier", "markdown-toc" },
+      },
+    },
+  },
 }

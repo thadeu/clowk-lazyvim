@@ -4,6 +4,22 @@
 
 local opt = vim.opt
 
+-- Absolute line numbers, the way VSCode shows them.
+--
+-- LazyVim sets relativenumber = true, so every line except the cursor line is
+-- numbered by its DISTANCE from the cursor. That is built for counted motions
+-- (`5j`, `12dd`), and the price is that the whole column renumbers itself on
+-- every cursor move -- the number beside a line is never the same twice, and it
+-- is not the number a stack trace, a `git blame` or a code review is talking
+-- about.
+--
+-- `number` stays true (LazyVim already sets it), so the column is still there,
+-- just steady. LazyVim's statuscolumn reads both options and follows.
+--
+-- <leader>uL toggles relative numbers back on for the buffer in front of you,
+-- for the rare counted motion.
+opt.relativenumber = false
+
 -- Horizontal scrolling.
 --
 -- LazyVim sets sidescrolloff = 8, which demands 8 columns of slack between the

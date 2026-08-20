@@ -598,6 +598,26 @@ no "ghostty" in that name, decides the terminal cannot draw, and every image
 falls back to text without saying why. `lua/config/options.lua` sets
 `SNACKS_GHOSTTY`, which is snacks' own escape hatch, and spells the chain out.
 
+**`markdownlint` is off on purpose.** The `lang.markdown` extra wires
+`markdownlint-cli2` in twice — as a linter that runs on every save, and as a
+formatter that runs `--fix` while one of its diagnostics is open — and its rules
+police the shape of the file (line length, inline HTML, duplicate headings)
+rather than whether it reads well. Prose written normally lights the buffer up,
+and the auto-fix then rewrites lines nobody touched straight into the next
+`git diff`. `marksman` still reports broken links and references, and
+`prettier` stays in the formatter chain — but nothing installs `prettier` here,
+so on a clean machine no tool rewrites a markdown buffer on save any more.
+`:ConformInfo` shows the chain; `lua/plugins/markdown.lua` says how to bring the
+linter back.
+
+**Spell check is off too**, for the same reason and by a different route. It is
+easy to mistake for a linter: LazyVim's `wrap_spell` autocmd sets `spell = true`
+for markdown, and `SpellBad` is a red undercurl — the same mark a diagnostic
+uses. A README full of product names, CLI flags and code spans then reads as a
+file full of errors. `lua/config/autocmds.lua` puts `spell` back to `false` for
+text, plaintex, typst, gitcommit and markdown, and keeps the `wrap = true` half
+of that autocmd. `<leader>us` turns spelling back on for one buffer.
+
 ## Images and audio
 
 Opening a `.png` or a `.mp3` in a plain Neovim reads the raw bytes into a buffer
@@ -813,9 +833,11 @@ lua/config/
                               ruby, docker, yaml, markdown, harpoon2, octo,
                               copilot
   keymaps.lua                 cmd+ shortcuts, horizontal scroll off, blame toggle
-  options.lua                 sidescrolloff / sidescroll, ruby lsp, ai_cmp
-  autocmds.lua                registers the audio player early enough to
-                              beat the read of `nvim song.mp3`
+  options.lua                 absolute line numbers, sidescrolloff /
+                              sidescroll, ruby lsp, ai_cmp
+  autocmds.lua                spell check off for prose; registers the audio
+                              player early enough to beat the read of
+                              `nvim song.mp3`
   audio.lua                   the .mp3 / .wav player: waveform, seek bar, keys
   sidebar.lua                 the activity bar: layout, icon row, panels
 lua/plugins/

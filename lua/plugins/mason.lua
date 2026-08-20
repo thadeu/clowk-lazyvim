@@ -4,22 +4,25 @@
 -- installer walks explicitly. LazyVim's language extras ALSO push names into
 -- mason's `ensure_installed`, and mason acts on that at startup --
 --
---   extras/lang/markdown.lua  ->  markdown-toc
+--   extras/lang/markdown.lua  ->  markdown-toc, markdownlint-cli2
 --   extras/lang/ruby.lua      ->  erb-formatter, erb-lint
 --
--- -- so the three kept reinstalling themselves after being removed from the
+-- -- so the four kept reinstalling themselves after being removed from the
 -- installer. This filters them back out of whatever the extras built.
 --
--- Why these three: erb-formatter and erb-lint are gems that compile native
+-- Why these four: erb-formatter and erb-lint are gems that compile native
 -- extensions (erb-lint pulls better_html), so they want a C toolchain on top of
 -- a recent Ruby, and they only touch Rails ERB templates. markdown-toc
--- generates a table of contents nothing here asks for. All three failed the
--- install on a second machine.
+-- generates a table of contents nothing here asks for. Both failed the install
+-- on a second machine. markdownlint-cli2 installs fine and is dropped for a
+-- different reason: its style rules fight normal prose, and the auto-fix puts
+-- the result in `git diff` -- lua/plugins/markdown.lua has the long version.
 --
 -- To bring one back, delete it from DROP and re-run setup/install.sh.
 
 local DROP = {
   ["markdown-toc"] = true,
+  ["markdownlint-cli2"] = true,
   ["erb-formatter"] = true,
   ["erb-lint"] = true,
 }

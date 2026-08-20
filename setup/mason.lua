@@ -37,9 +37,6 @@ local PACKAGES = {
   "hadolint",
   "yaml-language-server",
 
-  -- Markdown
-  "markdownlint-cli2",
-
   -- Lua, for editing this config
   "lua-language-server",
   "stylua",
@@ -57,6 +54,11 @@ local PACKAGES = {
 --                            Rails ERB templates.
 --   markdown-toc             generates a table of contents in markdown, and
 --                            nothing here calls it.
+--   markdownlint-cli2        markdown STYLE rules -- line length, inline HTML,
+--                            duplicate headings. They fight normal prose, and
+--                            conform runs the auto-fix on save, so the
+--                            rewrites land in `git diff`. See the note in
+--                            lua/plugins/markdown.lua.
 --   dockerfile-language-server, docker-compose-language-service
 --                            npm packages that 404 behind a corporate VPN.
 --                            Editing Dockerfiles still gets syntax and
