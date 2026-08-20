@@ -137,8 +137,9 @@ One feature each. `--minimal` skips them entirely.
 | **gh** | the PR/issue pickers and `octo.nvim`. Needs `gh auth login` |
 | **claude** | `<leader>gm` (commit messages) and `cmd+option+b` (the sidebar). Uses your Claude Code subscription — no API key |
 | a **Copilot** account | `Tab` autocomplete. Free up to 2000 completions a month. Needs `:Copilot auth` once, and node, which the TypeScript stack already installs |
-| **mermaid-cli** (`mmdc`) | Mermaid diagrams rendered inline in markdown buffers |
+| **mermaid-cli** (`mmdc`) | Mermaid diagrams rendered inline in markdown buffers. `mmdc` draws through a headless Chrome that Homebrew does NOT pull in — without it every render fails with `Could not find chrome-headless-shell`. `npx puppeteer browsers install chrome-headless-shell` (~130 MB) is the second half of this dependency |
 | **imagemagick** (`magick`) | inline svg, pdf and raster images. Not needed for Mermaid |
+| **ffmpeg** (`ffplay`, `ffprobe`) | seeking and the waveform in the audio player. macOS plays without it, through the built-in `afplay`, but cannot seek |
 
 `brew install mermaid-cli` pulls Homebrew's `node` as a dependency. If you manage
 Node with fnm/asdf/mise, yours has to stay first on `PATH` — the script warns
@@ -570,7 +571,76 @@ terminal without that protocol, snacks falls back to a floating window.
 raises the diagram size limits (the 80x40 default makes most flowcharts
 unreadable). LaTeX math renders the same way.
 
-Run `:checkhealth snacks` to see which external tools were detected.
+Run `:checkhealth snacks` to see which external tools were detected — and
+which terminal. Inside tmux that detection is a trap worth knowing about:
+snacks asks tmux for `client_termname`, which is the TERM the outer terminal
+announced, and the Ghostty config announces `xterm-256color`. snacks then finds
+no "ghostty" in that name, decides the terminal cannot draw, and every image
+falls back to text without saying why. `lua/config/options.lua` sets
+`SNACKS_GHOSTTY`, which is snacks' own escape hatch, and spells the chain out.
+
+## Images and audio
+
+Opening a `.png` or a `.mp3` in a plain Neovim reads the raw bytes into a buffer
+and fills the screen with binary garbage. Both file types are taken over before
+that happens, by the same mechanism — `BufReadCmd`, the autocmd that REPLACES
+the read of a file — and something else is drawn instead.
+
+**Images** cost nothing extra: the `snacks.image` already enabled for Mermaid is
+also a viewer. `:e logo.png`, or picking one in the sidebar, draws the picture
+in the buffer through the Kitty graphics protocol, which Ghostty implements.
+
+| | |
+| --- | --- |
+| Formats | png, jpg, jpeg, gif, bmp, webp, tiff, heic, avif, icns, pdf, and the first frame of mp4, mov, avi, mkv, webm |
+| Not included | `svg` — it is source code, and taking it over would make every svg in a repo unopenable for editing. `lua/plugins/markdown.lua` says how to trade that away |
+| Needs | `magick` for everything that is not already a PNG |
+
+**Audio** has no upstream plugin, so `lua/config/audio.lua` is one: a player
+buffer, with the waveform doubling as the seek bar.
+
+```
+  󰋅  song.mp3
+  mp3 · 44.1 kHz · stereo · 128 kbps · 3.4 MB
+
+      ▄▄▄█▄▄▄▄           ▄▄▄▄▄▄▄           ▄▄▄▄▄▄▄▄           ▄▄▄█▄▄▄▄
+   ▄███████████▄      ▄███████████▄      ▄██████████▄▄     ▄▄██████████▄
+ ▄███████████████▄  ▄███████████████▄  ▄███████████████▄ ▄███████████████▄
+███████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████
+ ▀███████████████▀  ▀███████████████▀  ▀███████████████▀ ▀███████████████▀
+   ▀███████████▀      ▀███████████▀      ▀██████████▀▀     ▀▀██████████▀
+      ▀▀▀█▀▀▀▀           ▀▀▀▀▀▀▀           ▀▀▀▀▀▀▀▀           ▀▀▀█▀▀▀▀
+
+  ▶  01:23 / 03:45   vol 80
+```
+
+The played part of the waveform is highlighted, and a click anywhere on it
+seeks there.
+
+| Key | |
+| --- | --- |
+| `space`, `enter`, `p` | play / pause |
+| `h` `l`, `←` `→` | ∓5 seconds |
+| `H` `L` | ∓30 seconds |
+| click | seek to that point of the waveform |
+| `0` | back to the start |
+| `s` | stop |
+| `-` `=` | volume |
+| `m` | mute |
+| `r` | repeat |
+| `q` | close |
+
+| | |
+| --- | --- |
+| Formats | mp3, wav, m4a, aac, aif, aiff, caf, flac, ogg, oga, opus, wma |
+| Plays with | `ffplay` (from ffmpeg). Without it, macOS's built-in `afplay` — which has no start-offset flag, so seeking is the one feature that goes away |
+| Waveform | `ffmpeg`. Without it the seek bar is a flat line, and everything else still works |
+| Duration and the format line | `ffprobe`, or `afinfo` on macOS |
+
+Pausing is `SIGSTOP`: neither player has a pause command, so the process is
+frozen mid-buffer and `SIGCONT` picks the sound up where it was. Seeking is a
+restart at an offset, which is why it needs `ffplay`.
 
 ## Machine-local overrides
 
@@ -725,7 +795,10 @@ lua/config/
                               copilot
   keymaps.lua                 cmd+ shortcuts, horizontal scroll off, blame toggle
   options.lua                 sidescrolloff / sidescroll, ruby lsp, ai_cmp
-  autocmds.lua                (empty -- kept for your own autocmds)
+  autocmds.lua                registers the audio player early enough to
+                              beat the read of `nvim song.mp3`
+  audio.lua                   the .mp3 / .wav player: waveform, seek bar, keys
+  sidebar.lua                 the activity bar: layout, icon row, panels
 lua/plugins/
   git.lua                     inline blame, diffview
   octo.lua                    picker -> snacks

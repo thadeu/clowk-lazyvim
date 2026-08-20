@@ -72,6 +72,33 @@ vim.filetype.add({
   extension = { voodu = "hcl" },
 })
 
+-- Tell snacks.image that this Ghostty is a Ghostty.
+--
+-- Inline images -- Mermaid, LaTeX, and every .png -- need snacks to recognise
+-- the terminal, and inside tmux that recognition breaks in a way nothing
+-- reports:
+--
+--   * snacks normally asks the terminal its name with an escape sequence and
+--     reads the answer in `TermResponse`. With `extended-keys on` (which
+--     ~/.tmux.conf needs, so Claude Code can tell shift+enter from enter) that
+--     autocmd never fires, so snacks asks tmux instead: `client_termname`.
+--   * `client_termname` is whatever TERM the outer terminal announced, and the
+--     Ghostty config sets `term = "xterm-256color"`. snacks strips the
+--     `xterm-` and looks for "256color" among kitty / ghostty / wezterm.
+--   * No match, so the terminal counts as unable to draw images, and every
+--     image silently falls back to the "Image viewer / unsupported" text.
+--
+-- `SNACKS_<NAME>` is snacks' own escape hatch: it skips detection for that
+-- terminal. The alternative is to drop the `term =` line from the Ghostty
+-- config, which is a bigger decision -- it is what ssh and every non-Ghostty
+-- terminfo on the far side of a connection sees.
+--
+-- Check the result with :checkhealth snacks -- it must say `ghostty` detected
+-- and supported.
+if vim.env.GHOSTTY_RESOURCES_DIR or vim.env.TERM_PROGRAM == "ghostty" then
+  vim.env.SNACKS_GHOSTTY = vim.env.SNACKS_GHOSTTY or "1"
+end
+
 -- Machine-local overrides, untracked (see .gitignore and the README).
 -- Optional: pcall so a missing file is not an error.
 pcall(require, "config.local")

@@ -28,7 +28,7 @@
 #             slice and is reported at the end -- it does not abort, because a
 #             machine that never touches Rails does not need Ruby.
 #
-#   OPTIONAL  lazygit, gh, mermaid-cli, imagemagick.
+#   OPTIONAL  lazygit, gh, mermaid-cli, imagemagick, ffmpeg.
 #             One feature each. Failures are warnings.
 
 set -euo pipefail
@@ -244,10 +244,12 @@ if [[ $MINIMAL -eq 0 ]]; then
   step "Optional tools"
 
   # lazygit -> <leader>gg, gh -> the PR/issue pickers and octo.nvim,
-  # mmdc -> inline Mermaid, magick -> inline svg/pdf/raster images.
+  # mmdc -> inline Mermaid, magick -> inline svg/pdf/raster images,
+  # ffmpeg -> the audio player: ffplay seeks, ffmpeg draws the waveform.
+  # macOS plays without it (afplay), it just cannot seek.
   need_opt=()
 
-  for pkg in lazygit gh mermaid-cli imagemagick; do
+  for pkg in lazygit gh mermaid-cli imagemagick ffmpeg; do
     grep -qx "$pkg" <<<"$installed_formulae" || need_opt+=("$pkg")
   done
 
