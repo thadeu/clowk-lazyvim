@@ -375,6 +375,25 @@ Three properties worth knowing, all in `setup/tmux/tmux.conf`:
 Neovim's float is still mapped, and answers `cmd+j` when you are not in tmux — on
 a machine without tmux nothing about the key changes.
 
+**Copying text out of the popup** is the one thing a popup makes harder, and it
+fails in two different ways, neither of which reports itself:
+
+| | |
+| --- | --- |
+| Dragging with the mouse selects nothing | tmux does not route mouse events into a popup. The same drag in an ordinary pane selects and copies |
+| A copy inside the popup never reaches macOS | OSC 52 — the escape sequence `set-clipboard` uses, and what carries a copy out of an ordinary pane — does not survive the popup either |
+
+So there are two ways in, and both are set up:
+
+- **Mouse:** hold **shift** while dragging. Shift makes Ghostty ignore tmux's
+  grab on the mouse and select with its own selection, and `copy-on-select =
+  clipboard` puts it on the clipboard with no `cmd+c`. It is also the only way
+  to select text that crosses the popup border.
+- **Keyboard:** `ctrl+b [` enters copy mode, `v` starts the selection, `y` takes
+  it. `y` pipes through `pbcopy`, a local process, which is why it works where
+  OSC 52 does not. Copy mode is `mode-keys vi`, so `v`, `y` and `/` mean what
+  they mean in Neovim.
+
 `setup/tmux/tmux.conf` is installed **whole**, unlike the Ghostty config, which
 is merged into whatever is already on the machine. A tmux config does not merge:
 two of them means two `run tpm` lines and a status bar fought over by both. Any

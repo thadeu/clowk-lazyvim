@@ -6,6 +6,15 @@ working-directory = $HOME/code
 background-opacity = 0.95
 background-blur = true
 
+# Any mouse selection goes straight to the system clipboard, no cmd+c.
+#
+# `clipboard` and not the `true` default: on macOS `true` means the SELECTION
+# clipboard, which macOS does not have, so selections reached nothing. This is
+# also half of how you copy out of the cmd+j popup -- tmux does not give the
+# mouse to a popup, so shift+drag (which makes Ghostty ignore tmux's grab) is
+# the only mouse selection that works in there.
+copy-on-select = clipboard
+
 # --- Typography ---
 # The Nerd Font variant is not optional: LazyVim's file icons, git signs and
 # diagnostics are all Nerd Font glyphs, and plain "JetBrains Mono" renders every
@@ -83,6 +92,19 @@ adjust-icon-height = 150%
 # whole app, created once and reused, so its cwd is frozen at creation instead
 # of following the project, and it answers the key from any Ghostty window.
 keybind = super+j=esc:j
+
+# super+shift+j = the same terminal, drawn as a bottom panel.
+#
+# Ghostty's own quick terminal is the obvious way to get this shape and cannot
+# do it: `toggle_quick_terminal` takes no command, so nothing can start a
+# per-repo tmux session in it, and its single surface is shared by every tab.
+# So the shape is rebuilt in tmux, where the session name comes from the pane's
+# cwd and is therefore per repo. Geometry lives in ~/.tmux.conf under M-J.
+#
+# Same session as super+j, so the two keys are two shapes of one terminal and
+# either one hides it. Only tabs running tmux answer -- `nvim` starts one (see
+# ~/.zshrc); in a plain shell tab the key does nothing.
+keybind = super+shift+j=esc:J
 # super+w = close buffer
 keybind = super+w=esc:w
 # super+n = new buffer
