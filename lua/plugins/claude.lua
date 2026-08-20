@@ -42,10 +42,19 @@ return {
             count = 1,
             win = {
               position = "right",
+              -- The panel frame, minus the gutter this terminal has no use
+              -- for. The lid is drawn in the tabline with the others
+              -- (lua/plugins/bufferline.lua); this is the row under it, and a
+              -- bare line down the left. lualine closes the bottom, and the
+              -- right side is the screen -- see lua/config/frame.lua for why
+              -- there is no fourth.
+              wo = {
+                winbar = require("config.frame").top(" claude "),
+                statuscolumn = require("config.frame").edge,
+              },
               -- A fraction is a share of the editor width; an integer would be
               -- a fixed number of columns instead. Tune this line to taste.
               width = 0.23,
-              wo = { winbar = "" },
             },
           })
         end,

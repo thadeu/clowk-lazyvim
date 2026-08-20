@@ -27,6 +27,62 @@ return {
         desc = "Breadcrumb (pick)",
       },
     },
-    opts = {},
+    opts = function(_, opts)
+      -- Names only, no icons.
+      --
+      -- dropbar puts three kinds of icon in the bar: one for the file, one for
+      -- a directory, and one per LSP symbol kind -- the `{}` in front of every
+      -- key of a yaml file. On a path five segments long that is five glyphs
+      -- competing with the five words that carry the meaning.
+      --
+      -- `icons.enable = false` is dropbar's own switch for this and is not
+      -- used: it blanks `icons.ui` as well, which is where the separator lives,
+      -- and it does it by metatable -- something `vim.tbl_deep_extend` drops on
+      -- the way through, leaving the bar with nil where it wants a string. The
+      -- kinds are spelled empty one by one instead, from dropbar's own list, so
+      -- a kind it learns later comes out empty too rather than missing.
+      local symbols = require("dropbar.configs").opts.icons.kinds.symbols
+      local blank = {}
+
+      for kind in pairs(symbols) do
+        blank[kind] = ""
+      end
+
+      return vim.tbl_deep_extend("force", opts or {}, {
+        -- Two columns of padding on the left, where dropbar ships one.
+        --
+        -- The extra one is the frame: lua/config/frame.lua puts the panel's
+        -- left edge in front of this bar, and dropbar measures its own
+        -- truncation against the whole window. Two cells over is all it takes
+        -- for Neovim to cut a winbar -- from the FRONT, which is where the edge
+        -- is -- so the column is handed to dropbar to account for instead, and
+        -- its own `…` marker keeps doing the truncating, which it does better.
+        bar = { padding = { left = 2, right = 1 } },
+        icons = {
+          kinds = {
+            dir_icon = "",
+            file_icon = "",
+            symbols = blank,
+          },
+          ui = {
+            bar = {
+              -- Air on BOTH sides of the chevron. dropbar ships it with a
+              -- space after and none before, so a segment ran straight into the
+              -- separator behind it -- `compose.build.yml services`. VSCode
+              -- gives the chevron a column of its own, and that is the whole
+              -- difference between a path you read and one you decode.
+              --
+              -- A TEXT chevron, and not the Nerd Font one dropbar ships
+              -- (U+F460). A Nerd Font glyph is an icon as far as the terminal
+              -- is concerned, and a terminal fits icons to the cell -- Ghostty
+              -- does, iTerm2 does not, which is why the same file icons looked
+              -- inflated in one and right in the other. `›` is ordinary text
+              -- and is drawn as text, in every terminal.
+              separator = " \u{203a} ",
+            },
+          },
+        },
+      })
+    end,
   },
 }

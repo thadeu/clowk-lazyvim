@@ -115,6 +115,19 @@ if vim.env.GHOSTTY_RESOURCES_DIR or vim.env.TERM_PROGRAM == "ghostty" then
   vim.env.SNACKS_GHOSTTY = vim.env.SNACKS_GHOSTTY or "1"
 end
 
+-- The panels of the window are separated by a strip of the app background,
+-- the way VSCode draws editor, sidebar and secondary sidebar as cards. It is
+-- one option and one highlight, both in lua/config/panels.lua, which says why
+-- the sidebar needs a second half of the same setting.
+--
+-- Here rather than in autocmds so the column is right on the first draw.
+require("config.panels").setup()
+
+-- And each panel is drawn as a card: a rounded frame around the window, in the
+-- three edges Neovim lets a window reserve. lua/config/frame.lua says which
+-- three, and why the fourth one is the gap above rather than a line.
+require("config.frame").setup()
+
 -- Machine-local overrides, untracked (see .gitignore and the README).
 -- Optional: pcall so a missing file is not an error.
 pcall(require, "config.local")

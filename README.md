@@ -233,37 +233,55 @@ the clipboard by themselves, via `copy-on-select`.
 
 `cmd+b`, `cmd+shift+f` and `cmd+shift+g` are three panels of ONE sidebar, not
 three windows. Only one is ever docked on the left, and the row of icons at the
-top of it switches between them -- with the mouse, since a `winbar` is the one
-part of a window Neovim lets you both draw and click:
+top of it switches between them -- with the mouse, since the row is drawn as
+buffer text and a click on it is caught by a global `<LeftMouse>` map.
+
+The column reads as ONE panel, the way VSCode stacks its icons, a gap and a
+title inside a single box. It is two windows:
 
 ```
-├─────────────────────────────────────────┤
-│                                    │  the bar is a WINDOW,
-├─────────────────────────────────────────┤  M.bar_height rows tall
+╭─────────────────────────────────────────╮  the bar is a WINDOW,
+│                                    │  M.bar_height rows tall,
+│                                         │  and it draws the lid
 │  CHANGES                                │
-├─────────────────────────────────────────┤
-│  M apps/…/service.go                    │  the panel
+│                                         │  <- its STATUSLINE row
+│  M apps/…/service.go                    │  the panel, sides only
+╰─────────────────────────────────────────╯  <- ITS statusline row
 ```
 
-The header names the open panel the way VSCode heads its sections: the project
-directory for the explorer, `SEARCH`, `CHANGES`. It takes the last row, and the
-rule above it takes the one before that, a second rule the very top, and the
-buttons are centred in whatever is left:
+The seam is a statusline. Every window has one now (`laststatus` is 2, see the
+frame section below), so the row between the two windows exists whether or not
+anything is put in it -- left alone it would have cut the column in half.
+Drawing the two sides of the box through it is what welds the two boxes into
+one. The panel below draws only the sides, and its own statusline closes the
+bottom.
 
-| `M.bar_height` | rows |
+That row is also the only one available between the label and the tree, the
+panel being a different window that starts drawing on its first row. Leaving it
+blank is what gives the label the same air above and below it:
+
+The label names the open panel the way VSCode heads its sections: `FOLDERS`,
+`SEARCH`, `CHANGES`. The explorer was named after the project directory at
+first, which the tree already says on its own first row -- twice in two rows
+reads as a bug, not as an answer.
+
+| `M.bar_height` | rows, the seam included |
 | --- | --- |
-| 4 | rule / buttons / rule / label -- the banded VSCode look |
-| 3 | buttons / rule / label |
-| 2 | buttons / label |
-| 1 | buttons |
+| 5 | lid / buttons / blank / label / seam -- the VSCode look |
+| 4 | lid / buttons / label / seam |
+| 3 | lid / buttons / seam |
 
-Three numbers shape the row, all on the module:
+Five and not four: with the label right under the buttons the air was all on
+one side of it, and the column read as two halves rather than as one panel.
+
+Four numbers shape the row, all on the module:
 
 | Knob | What it is |
 | --- | --- |
 | `M.bar_pad` | spaces around the icon *inside* a button -- the lit block on the open one is exactly this padding, not a filled third of the bar |
-| `M.bar_gap` | spaces between buttons, and before the first |
-| `M.bar_height` | rows |
+| `M.bar_gap` | spaces between two buttons |
+| `M.bar_indent` | spaces before the first button, and before the label. One column tighter than the gap, so the row lines up with the rows of the panel below instead of sitting visibly right of them |
+| `M.bar_height` | rows, the seam included |
 
 What a button *draws* and what it *answers to* are deliberately different: the
 click takes half a gap on each side and every row of the bar except the label,
@@ -294,11 +312,36 @@ is drawn is `M.icons` in `lua/config/sidebar.lua`; how big it is drawn is
 Ghostty's `adjust-icon-height` and the `font-codepoint-map` block in
 `setup/ghostty/config`.
 
-`lua/plugins/bufferline.lua` keeps the buffer tabs off the sidebar. bufferline
-shifts the tabline by the width of a window whose filetype it recognises, and
-it only ever looks at the TOPMOST window of a column -- which is the bar now,
-not the picker LazyVim names. The bar being the top of that column for all
-three panels, one entry covers them all, grug-far included.
+`lua/plugins/bufferline.lua` draws the buffer tabs, and the tabline they live on
+is not a tabline any more: it is the row of **lids**. bufferline assembles its
+line in a fixed order —
+
+```
+offsets.left · custom_areas.left · TABS · custom_areas.right · offsets.right
+```
+
+— so a custom area is a way to put something immediately before the first tab
+and immediately after the last one, and whatever it measures comes off the width
+bufferline has to fill. That is the whole mechanism: the left area draws the
+sidebar's lid, the gap column and the editor's corner; the right one draws the
+lid of the Claude panel; and the tabs land in between, sized to what is left,
+which is the editor.
+
+```
+╭─ CLOWK LAZYVIM ──────────────────────╮ ╭─   frame.lua  ⚠1
+│                                      │ │  lua › config › frame.lua
+│  󰉋  󰍉  󰊢                             │ │  121   --- The left edge, in front of…
+╰──────────────────────────────────────╯ ╰─ frame.lua                     125:1
+```
+
+Each item carries its own highlight, and the lids have to say their background
+out loud: that one line runs over three panels with three backgrounds, and there
+is nothing underneath a tabline to inherit from. `always_show_bufferline` is on
+because a panel with no lid is a panel with a hole in it.
+
+The sidebar's lid comes from there too, which is why the icon bar starts with a
+blank row rather than a border: its box is opened one row above it, by a
+different line.
 
 Pressing the key (or clicking the icon) of the panel already on screen closes
 the sidebar. Pressing another one swaps the contents.
@@ -346,6 +389,138 @@ on `<leader>gg`. Its four panels need the whole window, which is the one thing a
 40-column sidebar cannot give.
 
 The whole thing is `lua/config/sidebar.lua`.
+
+### The gap between the panels
+
+VSCode draws editor, sidebar and secondary sidebar as separate cards, with a
+strip of app background between them. Half of that survives the trip into a
+terminal and half does not: the smallest thing Neovim can paint is one cell, so
+a corner radius is always a glyph and never a curve — but the strip is real,
+because the column Neovim already draws between two vertical splits is exactly
+one cell wide.
+
+Two options make it, and which half of each is used is the whole trick:
+
+| | |
+| --- | --- |
+| `fillchars` | the CHARACTER of the column. A space has no glyph, so the cell is nothing but its background |
+| `WinSeparator` | the colour — and only its `bg` is taken. The `fg` is still the horizontal rule between stacked windows, the one under the icon bar in the sidebar, so painting the gap with `fg` would have erased that rule in the same stroke |
+
+`fillchars` is a global-*local* option, which is why the setting has two halves.
+A window that sets its own value stops reading the global one, and snacks sets
+one on every window it owns. The separator between two splits is drawn by the
+window on the **left** of it — so the sidebar, a snacks window, was the last
+split still drawing a `│` after every other one had gone quiet.
+`lua/plugins/panels.lua` hands the same value to `Snacks.config.win`, which
+every snacks window resolves against, including the box that a split layout is
+wrapped in. That box, and not the list inside it, is the window that touches the
+editor.
+
+The colour is derived rather than written down, because `colors/clowk-night.lua`
+is generated by clowk-terminal and is overwritten whole on every regeneration.
+The gap is the darker of `Normal` and `NormalFloat`, darkened again — `DEPTH` in
+`lua/config/panels.lua` is the knob, and `1.0` makes the gap disappear.
+
+### The frame around each panel
+
+The gap separates the panels; this draws a rounded box around each one, the way
+lazygit frames every one of its own. lazygit can do it because it owns every
+cell of the screen. A Neovim window does not get that canvas, and the box it
+*can* draw by itself — the four-sided border of a floating window — is out of
+reach here: a float cannot be split (`Cannot split a floating window`), and the
+editor is nothing but splits.
+
+What a window does give away is three of its four edges, and all three are
+decorations Neovim already renders around the text:
+
+| Edge | Drawn by | Carries |
+| --- | --- | --- |
+| top | the `tabline` | the lid of every panel at once, with the buffer tabs inside the editor's |
+| left | `statuscolumn` | in front of the line numbers, and the `winbar` on its own row |
+| bottom | `statusline` | lualine, between the two corners |
+
+Two rows of chrome inside a panel — tabs, then the breadcrumb under them — is one
+row more than a window has: `winbar` is a single line and so is `statusline`.
+The tabline is the only other line on offer, and being screen-wide is exactly
+what lets it draw a lid over every column at once.
+
+The fourth edge is not a decision, it is a wall. A window can reserve a cell on
+its **left** — that is what `statuscolumn` is — and has nothing of the kind on
+its right. The only column there is the separator, and the separator belongs to
+the layout rather than to the window: it sits one cell further right than the
+corner a winbar can reach, so the two would never meet. `colorcolumn` paints a
+column instead of reserving one and looked like the way out, but it only paints
+where a buffer LINE is — past the end of the file it draws nothing, which is
+most of the screen on a start page.
+
+So the right corners are not drawn either. Both rules run to the edge and stop.
+The corner *can* be put there — a winbar and a statusline both reach the last
+column — but nothing can draw the line between them, and a corner with nothing
+hanging off it reads as a box that failed rather than as a frame. The panels
+that do have a right side keep their corners: the tree, because snacks draws it
+a real border, and the icon bar, because those two columns are its own buffer
+text.
+
+Three details make the rest cheap:
+
+- **The top edge stretches itself.** `fillchars` has `wbr`, the character the
+  winbar pads itself with. Set it to `─` and a `%=` in the middle of the line
+  runs the border out to the exact width of the window. No arithmetic, and
+  nothing to redo on a resize.
+- **The bottom edge cannot.** The statusline has the same padding — `stl` and
+  `stlnc` — and it is unreachable: lualine emits the highlight of the MIDDLE
+  section immediately before its `%=` (`format_highlight('c') .. '%=' ..
+  section_data`, hardcoded), so the run of `─` comes out in the colour of the
+  file path. Near white, and a bright line under every panel. The panels that
+  are not the editor therefore draw their whole bottom edge as one component
+  with the width measured; the editor keeps its lualine content between the two
+  corners, a footer inside the box the way lazygit's bottom bar sits inside its
+  frame.
+- **dropbar stands down on its own.** Its `enable` refuses any window that
+  already has a winbar, so setting the frame first is all it takes — and
+  `v:lua.dropbar()` inside the frame still builds the bar on demand, clicks and
+  menus included.
+- **`winbar` is global-*local*, and that one is a trap.** For a string option of
+  that kind an empty local value does not mean "no winbar", it means "use the
+  global one". A frame set globally is therefore worn by every window that turns
+  its winbar off — snacks' own among them, which is exactly the set that must
+  not have it. It is set per window instead.
+
+`laststatus` goes from 3 to 2 for this: the bottom edge belongs to the panel,
+not to the screen. lualine follows that number by itself, and the panels that
+are not the editor get a lualine *extension* — it is what lets them replace the
+whole line with their edge, and without it lualine writes `[No Name] [-] 1:1`
+under a file tree, where the row is not a status but the bottom of a box.
+
+The panels each close what they can. The whole left column is one box drawn by
+two windows: the icon bar puts a lid and two sides on it in its own buffer text,
+its statusline is the title row under the buttons, the tree below carries the
+two sides on — a snacks layout, wrapped in a split precisely so it can carry a
+border, here asked for the sides and nothing else — and the tree's statusline
+closes the bottom. Claude asks for `frame.top(" claude ")` and puts a title
+where the breadcrumb would go.
+
+Find and replace is the one panel that cannot close: grug-far opens a plain
+window, so it has the wall on its right, and the rows it draws as virtual lines
+have no gutter to carry the left edge either.
+
+The start screen needed three of its own. The left edge rides on the gutter,
+and the dashboard turns its `statuscolumn` off, so its box came out with a top,
+a bottom, two corners and nothing between them -- an empty `statuscolumn` is
+read as "no gutter here" and the edge goes into that column alone. snacks also
+hides both bars while the dashboard is up (`vim.o.showtabline, vim.o.laststatus = 0, 0`), which takes the
+name off the tabline and the bottom edge off the panel on the one screen that is
+nothing but panels -- so they are put back when it opens, and its buffer is
+named in the short list of non-files that still get a frame. Its own restore on
+close is written as "only if still 0", so this does not fight it.
+
+The breadcrumb is called through a wrapper rather than as the `v:lua.dropbar()`
+the plugin writes, because dropbar is lazy-loaded on the first FILE and `nvim .`
+opens on a directory: a dashboard and a tree, no file anywhere. The winbar drew,
+the call failed, and every redraw of the picker raised `attempt to call global
+'dropbar'`.
+
+`lua/config/frame.lua`, `lua/plugins/lualine.lua`.
 
 ### cmd+j is a tmux popup, not a Neovim terminal
 
@@ -554,17 +729,42 @@ the statusline, and only when `vim.g.trouble_lualine` is false, which is not the
 default.
 
 `lua/plugins/breadcrumb.lua` adds `dropbar.nvim`, which puts the VSCode-style
-path in the **winbar**, one line per window:
+path in the **winbar** — the row under the lid, directly below the buffer tabs,
+which is where VSCode has it:
 
 ```
- lua  plugins  markdown.lua  return  [1]  opts  image  doc
+│  lua › config › frame.lua › set_hl
 ```
+
+Two details keep it inside the frame. dropbar gets **two** columns of left
+padding where it ships one, because the panel's left edge is drawn in front of
+it and dropbar measures its own truncation against the whole window — two cells
+over is all it takes for Neovim to cut a winbar. And the cut is aimed: a `%<`
+right after the edge is the truncation *point*, so a path too long for a narrow
+split loses its leftmost segments instead of its frame. Without it the split came
+out with a `<` where its left edge belongs.
 
 It builds the path from LSP `documentSymbol`, treesitter and the file path, in
 that order. Every segment is clickable and opens a menu to jump; `<leader>cb`
 does the same from the keyboard.
 
-The symbol part is therefore duplicated between the winbar and the statusline.
+Names only, and a chevron with a column of its own:
+
+dropbar puts three kinds of icon in that line — one for the file, one for a
+directory, one per LSP symbol kind — so a path five segments long carries five
+glyphs competing with the five words that mean something. They are spelled empty
+one kind at a time, from dropbar's own list, rather than through its
+`icons.enable = false`: that switch blanks `icons.ui` as well, where the
+separator lives, and does it by metatable — which `vim.tbl_deep_extend` drops on
+the way through, leaving the bar with nil where it wants a string.
+
+The chevron is a *text* one (`›`) and not the Nerd Font glyph dropbar ships. A
+Nerd Font glyph is an icon as far as the terminal is concerned, and a terminal
+fits icons to the cell: Ghostty does, iTerm2 does not, which is why the same
+file icons look inflated in one and right in the other. Ordinary text is drawn
+as text in both.
+
+The symbol part used to be duplicated between the winbar and the statusline.
 To keep it only at the top, set `vim.g.trouble_lualine = false` in
 `lua/config/options.lua`.
 
@@ -840,10 +1040,14 @@ lua/config/
                               `nvim song.mp3`
   audio.lua                   the .mp3 / .wav player: waveform, seek bar, keys
   sidebar.lua                 the activity bar: layout, icon row, panels
+  panels.lua                  the dark gap between the panels
+  frame.lua                   the rounded box around each panel
 lua/plugins/
   git.lua                     inline blame, diffview
   octo.lua                    picker -> snacks
   markdown.lua                snacks.image for inline mermaid / math
+  panels.lua                  the gap again, for the windows snacks owns
+  lualine.lua                 the bottom edge of every box
   harpoon.lua                 note on harpoon vs bufferline
   breadcrumb.lua              dropbar: VSCode-style path in the winbar
   claude.lua                  cmd+option+b: Claude Code in a right sidebar

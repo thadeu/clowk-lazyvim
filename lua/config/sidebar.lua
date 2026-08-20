@@ -27,6 +27,11 @@
 
 local M = {}
 
+--- The gap between the panels. This module owns the windows of the left
+--- column, which are the ones that DRAW the strip between the sidebar and the
+--- editor, so they are the ones that have to carry its `fillchars`.
+local gap = require("config.panels")
+
 -- 40 is the snacks `sidebar` preset width, and its minimum.
 M.width = 40
 
@@ -37,6 +42,31 @@ M.width_search = 60
 --- What a split window in the left column has to be told, so it stops painting
 --- itself with the editor's background. See ClowkSidebarPanel below.
 M.winhighlight = "Normal:ClowkSidebarPanel,NormalNC:ClowkSidebarPanel"
+
+--- How wide the left column is, or nil when it is not on screen.
+---
+--- Read by lua/plugins/bufferline.lua, which draws the lid of this panel in the
+--- tabline and has to know where it ends. The bar is the top of that column for
+--- every panel, so its window is the one to measure.
+function M.column_width()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_is_valid(win) and vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "clowk_sidebar" then
+      return vim.api.nvim_win_get_width(win)
+    end
+  end
+end
+
+--- The name of the whole thing, written into the lid of the sidebar.
+---
+--- It used to live in the tabline, in the strip bufferline reserves next to the
+--- sidebar (`offsets`). The tabs moved into the panels and took the tabline
+--- with them (lua/plugins/bufferline.lua), so the name moved to the one place
+--- that was already drawing a line above the sidebar: the top edge of this box.
+M.logo = "CLOWK LAZYVIM"
+
+--- The left and right edge of the bar's box. One cell, three bytes -- the two
+--- numbers the render has to keep apart.
+local EDGE = "│"
 
 local INSTANCE = "sidebar"
 
@@ -58,6 +88,9 @@ local function set_hl()
 
   vim.api.nvim_set_hl(0, "ClowkSidebarTab", { fg = hl("Comment").fg, bold = true })
   vim.api.nvim_set_hl(0, "ClowkSidebarHeader", { fg = hl("Title").fg, bold = true })
+  -- The word above the bar, on the tabline. Same colour as the panel label, so
+  -- the whole left column reads as one identity -- see lua/plugins/bufferline.lua.
+  vim.api.nvim_set_hl(0, "ClowkLogo", { fg = hl("Title").fg, bold = true })
   -- The same colour as the line Neovim draws between windows, so the rule
   -- inside the bar and the one under it read as the same kind of border.
   vim.api.nvim_set_hl(0, "ClowkSidebarDivider", { fg = hl("WinSeparator").fg })
@@ -115,8 +148,10 @@ local tabs = {
 
 --- What the open panel is called, the way VSCode heads its sidebar sections.
 ---
---- The explorer is named after the project rather than after itself, which is
---- what makes the bar answer "where am I" and not only "what is this".
+--- The explorer used to be named after the project instead -- the basename of
+--- the tree's root, so the bar answered "where am I" and not only "what is
+--- this". The tree says that on its own first row, though, and having it twice
+--- in two rows read as a bug rather than as an answer.
 ---@param active string
 local function header(active)
   if active == "git" then
@@ -128,31 +163,47 @@ local function header(active)
   end
 
   if active == "explorer" then
-    -- The tree's own root, not the current file's: the panel is showing that
-    -- directory, whatever buffer happens to be open beside it.
-    local p = Snacks.picker.get({ source = "explorer" })[1]
-    local ok, root = pcall(function()
-      return p and p:cwd() or nil
-    end)
-
-    return vim.fs.basename(ok and root or vim.uv.cwd()):upper()
+    return "FOLDERS"
   end
 
   return ""
 end
 
---- How tall the activity bar is, in rows. See `bar_render` for what each row
---- becomes; 4 is the banded VSCode look: rule, buttons, rule, label.
-M.bar_height = 4
+--- How tall the activity bar is, in rows, the statusline row under it
+--- included. See `bar_render` for what each row becomes.
+---
+--- 3 is a blank row, the row of icons, and the statusline under it -- which is
+--- blank too, and is the only row between this window and the panel below. The
+--- icons sit as LOW as the bar allows: the air goes on top, where it reads as
+--- room under the lid rather than as a gap over the tree.
+---
+--- The lid is NOT one of these rows. It is drawn in the tabline, alongside the
+--- lids of the other panels, by lua/plugins/bufferline.lua.
+---
+--- 2 takes that air back and puts the icons right under the lid.
+---
+--- 4 puts the name of the open panel back, with a blank row on each side of it
+--- (`FOLDERS`, `SEARCH`, `CHANGES` -- `header()` below). The two blanks are one
+--- decision, not two: the label needs the SAME air above and below, and the row
+--- below it is not ours -- the panel underneath is a different window and
+--- starts drawing on its first row, so the statusline is the only row available
+--- there. The lid says which project this is and the tree says the rest, which
+--- is what made the label worth the two rows it costs.
+M.bar_height = 3
 
 --- Spaces inside a button, around the icon. This is the whole of the lit block
 --- on the open one: a light padding, not a filled third of the bar.
 M.bar_pad = 1
 
---- Spaces between two buttons, and before the first. Half of a gap on each
---- side still COUNTS as the button when clicked -- the target stays bigger
---- than the block it draws.
+--- Spaces between two buttons. Half of a gap on each side still COUNTS as the
+--- button when clicked -- the target stays bigger than the block it draws.
 M.bar_gap = 2
+
+--- Spaces before the FIRST button, and before the label under it. One column
+--- tighter than the gap on purpose: the panel below starts its own rows one
+--- cell in from the edge, and a bar indented by the full gap sat visibly right
+--- of the tree it belongs to.
+M.bar_indent = 1
 
 local ns = vim.api.nvim_create_namespace("clowk_sidebar_bar")
 
@@ -182,13 +233,17 @@ local bar_active = ""
 ---@type { name: string, from: integer, to: integer }[]
 local slots = {}
 
---- The 1-based line the header sits on, so a click on the label is not read as
---- a click on the button above it. Every other row of the bar counts: the
---- target is one column wide but the full height of the button area.
+--- The 1-based line the label sits on, so a click on it is not read as a click
+--- on the button above it.
 ---@type integer?
 local head_line
 
---- Draw the bar: a row of buttons, and the name of the panel under them.
+--- Draw the bar: the lid of the panel, a row of buttons, a blank row, and the
+--- name of the panel that is open.
+---
+--- The label is not a button, and it sits under one, so `head_line` keeps a
+--- click on it from being read as a click on the icon above. Every OTHER row
+--- counts: the target is one column wide and the full height of the buttons.
 ---
 --- Buffer TEXT, not a `winbar`: a winbar is exactly one row, and the point of
 --- this window is to have height. The cost is that text is not clickable the
@@ -207,15 +262,16 @@ local function bar_render(active)
   bar_active = active or bar_active
 
   local pad = (" "):rep(M.bar_pad)
-  local gap = (" "):rep(M.bar_gap)
   local line, cells, marks = "", 0, {}
 
   slots = {}
 
-  for _, tab in ipairs(tabs) do
-    -- A gap before every button, the first one included: that leading one is
-    -- the left margin, and it keeps the row off the edge of the panel.
-    line, cells = line .. gap, cells + M.bar_gap
+  for i, tab in ipairs(tabs) do
+    -- A gap before every button, except the first: that one gets the left
+    -- margin instead, which is what lines the row up with the panel below.
+    local lead = i == 1 and M.bar_indent or M.bar_gap
+
+    line, cells = line .. (" "):rep(lead), cells + lead
 
     local icon = M.icons[tab.name]
     local text = pad .. icon .. pad
@@ -238,30 +294,41 @@ local function bar_render(active)
     -- button and demanding a small aim are two different things.
     slots[#slots + 1] = {
       name = tab.name,
-      from = cells + 1 - math.floor(M.bar_gap / 2),
+      from = math.max(cells + 1 - math.floor(M.bar_gap / 2), 1),
       to = cells + width + math.floor(M.bar_gap / 2),
     }
 
     line, cells = line .. text, cells + width
   end
 
-  -- The bar, from the bottom up: the label takes the last row, a rule the one
-  -- above it, and a second rule the very top -- each only once there is a row
-  -- to spare for it. What is left over is where the buttons go, in the middle
-  -- of it.
+  -- The bar is a box, the way the panel under it is one -- two cards stacked in
+  -- the same column. The first and last rows are the frame, the label takes the
+  -- last row inside it, and the buttons sit in the middle of what is left.
   --
-  --   4 rows   rule / buttons / rule / label   (VSCode's banding)
-  --   3 rows   buttons / rule / label
-  --   2 rows   buttons / label
-  --   1 row    buttons
-  local rows = math.max(M.bar_height, 1)
-  local head_row = rows > 1 and rows - 1 or nil
-  local div_row = rows > 2 and head_row - 1 or nil
-  local top_row = rows > 3 and 0 or nil
-  local first = top_row and 1 or 0
-  local last = (div_row or head_row or rows) - 1
-  local icon_row = math.floor((first + last) / 2)
+  --   4 rows   top edge / blank / buttons / label
+  --   3 rows   top edge / blank / buttons
+  --   2 rows   top edge / buttons
+  --
+  -- The label takes the last row when there is one to spare, the buttons sit
+  -- right above it, and whatever is left over becomes air under the lid.
+  --
+  -- No bottom edge: the panel below carries the same box on, so what this
+  -- draws is a lid, two sides and what goes between them.
+  local rows = math.max(M.bar_height - 1, 1)
+  local head_row = rows > 2 and rows - 1 or nil
+  local icon_row = (head_row or rows) - 1
   local lines = {}
+
+  -- Everything moves one cell right, because the left edge of the box is now
+  -- in front of it: the buttons in CELLS, and the highlights in BYTES -- `│`
+  -- is one cell and three bytes.
+  for _, slot in ipairs(slots) do
+    slot.from, slot.to = slot.from + 1, slot.to + 1
+  end
+
+  for _, mark in ipairs(marks) do
+    mark.from, mark.to = mark.from + #EDGE, mark.to + #EDGE
+  end
 
   for i = 1, rows do
     lines[i] = ""
@@ -271,30 +338,28 @@ local function bar_render(active)
 
   head_line = head_row and head_row + 1 or nil
 
-  local rule = ("─"):rep(vim.api.nvim_win_get_width(bar_win))
-  local rules = {}
-
-  -- Built by hand rather than as `{ top_row, div_row }`: a nil in the first
-  -- slot ends an ipairs before it starts, and at three rows the top rule is
-  -- exactly that nil -- the divider would go missing with it.
-  for _, row in ipairs({ top_row or -1, div_row or -1 }) do
-    if row >= 0 then
-      rules[#rules + 1] = row
-    end
-  end
-
-  for _, row in ipairs(rules) do
-    lines[row + 1] = rule
-    marks[#marks + 1] = { row = row, from = 0, to = #rule, hl = "ClowkSidebarDivider" }
-  end
-
   if head_row then
-    -- Indented by the same gap as the first button, so the label starts where
-    -- the row of buttons starts instead of hugging the edge on its own.
-    local title = gap .. header(active)
+    -- Indented like the first button, so the label starts where the row of
+    -- buttons starts instead of hugging the edge on its own.
+    local title = (" "):rep(M.bar_indent) .. header(active)
 
     lines[head_row + 1] = title
-    marks[#marks + 1] = { row = head_row, from = 0, to = #title, hl = "ClowkSidebarHeader" }
+    marks[#marks + 1] = { row = head_row, from = #EDGE, to = #EDGE + #title, hl = "ClowkSidebarHeader" }
+  end
+
+  -- The frame itself, drawn last so it can wrap what is already there. The
+  -- highlight is ClowkFrame -- the group lua/config/frame.lua builds for the
+  -- editor -- so the two boxes and the border of the panel under this one are
+  -- the same colour by construction rather than by coincidence.
+  local width = vim.api.nvim_win_get_width(bar_win)
+  local inner = math.max(width - 2, 0)
+
+  for i = 1, rows do
+    local pad = math.max(inner - vim.fn.strdisplaywidth(lines[i]), 0)
+
+    lines[i] = EDGE .. lines[i] .. (" "):rep(pad) .. EDGE
+    marks[#marks + 1] = { row = i - 1, from = 0, to = #EDGE, hl = "ClowkFrame" }
+    marks[#marks + 1] = { row = i - 1, from = #lines[i] - #EDGE, to = #lines[i], hl = "ClowkFrame" }
   end
 
   for _, mark in ipairs(marks) do
@@ -404,7 +469,10 @@ local function bar_open(win, active)
   bar_win = vim.api.nvim_open_win(bar_buf, false, {
     win = win,
     split = "above",
-    height = M.bar_height,
+    -- One row goes to the statusline, which is the bottom edge of this box --
+    -- see bar_render and lua/plugins/lualine.lua. M.bar_height stays the
+    -- height of the bar as it is SEEN.
+    height = math.max(M.bar_height - 1, 2),
   })
 
   -- A bar is not a text window: no numbers, no cursor, no fold or sign gutter
@@ -425,6 +493,10 @@ local function bar_open(win, active)
   wo.winfixwidth = true
   -- One column, one colour: see ClowkSidebarPanel.
   wo.winhighlight = M.winhighlight
+  -- The bar is the left side of the gap on its own rows, and a window that
+  -- sets `fillchars` for itself stops reading the global one. The panel below
+  -- is a snacks window and gets the same value from lua/plugins/panels.lua.
+  wo.fillchars = gap.fillchars()
 
   bar_render(active)
 end
@@ -476,10 +548,19 @@ local function layout(preview, width)
     layout = {
       backdrop = false,
       width = width,
-      min_width = width,
+      -- No `min_width`. It pins the width of what is INSIDE the box, and the
+      -- border is added around that -- a 40 column panel came out 42 wide and
+      -- laid its right edge over the gap and over the left edge of the editor.
+      -- With only `width` given, snacks fits the box into the column.
       height = 0,
       position = "left",
-      border = "none",
+      -- Sides only. The eight characters run clockwise from the top left
+      -- corner, and the six empty ones are the whole top and the whole bottom
+      -- of the box -- which is the point: this panel is the MIDDLE of one box
+      -- that starts in the icon bar above it and is closed by the statusline
+      -- below it. VSCode stacks its icons, its title and its tree inside one
+      -- panel, and two windows cannot share a border any other way.
+      border = { "", "", "", "│", "", "", "", "│" },
       box = "vertical",
       { win = "input", height = 1, border = true, title = "{title} {live} {flags}", title_pos = "center" },
       { win = "list", border = "none" },
@@ -814,6 +895,12 @@ local panels = {
       -- grug-far opens a real split, so it starts on the editor background.
       -- The pickers are floats and already carry the panel one.
       vim.wo[search_win].winhighlight = M.winhighlight
+      -- The left edge by hand: grug-far opens a plain window, so nothing gives
+      -- it one. The lid is in the tabline with the others; this is the row
+      -- under it, and lualine closes the bottom (lua/plugins/lualine.lua lists
+      -- this filetype). The right edge is the wall lua/config/frame.lua
+      -- describes: this is the one panel that cannot have one.
+      vim.wo[search_win].statuscolumn = require("config.frame").edge
       bar_open(search_win, "search")
       bar_follow(search_win)
     end,
