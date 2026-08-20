@@ -312,6 +312,23 @@ is drawn is `M.icons` in `lua/config/sidebar.lua`; how big it is drawn is
 Ghostty's `adjust-icon-height` and the `font-codepoint-map` block in
 `setup/ghostty/config`.
 
+The **file** icons get two glyphs replaced, in `lua/plugins/icons.lua`, and the
+choice was measured. A terminal fits a Nerd Font glyph to the cell, so what
+decides whether an icon towers over the text beside it is the glyph's own aspect
+ratio. Every glyph mini.icons hands out was measured against the font this
+config ships — 1040 of them — and the Material Design set they nearly all come
+from is drawn on one grid: 1233 units wide, every single one. Two were not:
+
+| Glyph | Size | Ratio | Replaced by |
+| --- | --- | --- | --- |
+| `i_seti_yml` (yaml) | 634 × 1864 | **2.94** | `file-cog`, 1237 × 1366, 1.10 |
+| `i_seti_shell` (sh, bash, zsh, …) | 996 × 1863 | **1.87** | `bash`, 1233 × 1060, 0.86 |
+
+A capital `M` in the same font is 1059 × 1488, a ratio of 1.41. Everything else
+over 1.5 is a filetype nobody here opens or one of mini.icons' `alpha-*` letters
+— the fallback for the hundreds of filetypes with no icon of their own, five
+hundred entries at 1.67, which is 18% over the `M` and not worth the churn.
+
 `lua/plugins/bufferline.lua` draws the buffer tabs, and the tabline they live on
 is not a tabline any more: it is the row of **lids**. bufferline assembles its
 line in a fixed order —
@@ -1048,6 +1065,7 @@ lua/plugins/
   markdown.lua                snacks.image for inline mermaid / math
   panels.lua                  the gap again, for the windows snacks owns
   lualine.lua                 the bottom edge of every box
+  icons.lua                   two file glyphs, replaced by measurement
   harpoon.lua                 note on harpoon vs bufferline
   breadcrumb.lua              dropbar: VSCode-style path in the winbar
   claude.lua                  cmd+option+b: Claude Code in a right sidebar
