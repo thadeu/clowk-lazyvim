@@ -34,6 +34,10 @@ M.width = 40
 -- columns every hit wraps over three rows and the panel stops being readable.
 M.width_search = 60
 
+--- What a split window in the left column has to be told, so it stops painting
+--- itself with the editor's background. See ClowkSidebarPanel below.
+M.winhighlight = "Normal:ClowkSidebarPanel,NormalNC:ClowkSidebarPanel"
+
 local INSTANCE = "sidebar"
 
 --- The grug-far window, so the panel can tell "focus me" from "close me".
@@ -61,6 +65,21 @@ local function set_hl()
     fg = hl("Title").fg,
     bg = hl("CursorLine").bg,
     bold = true,
+  })
+  -- The background of the whole left column.
+  --
+  -- The panels are snacks pickers, which are FLOATS: they paint themselves with
+  -- `NormalFloat`, a different colour from the editor. The bar above them is a
+  -- normal split, so it painted itself with `Normal` -- the EDITOR colour --
+  -- and cut the column in two, the buttons and the title looking like a strip
+  -- of editor parked over the tree.
+  --
+  -- Taking the colour from `NormalFloat` rather than linking to it keeps the
+  -- foreground of `Normal`: the bar draws text, the floats do not have to say
+  -- anything about how text looks.
+  vim.api.nvim_set_hl(0, "ClowkSidebarPanel", {
+    fg = hl("Normal").fg,
+    bg = hl("NormalFloat").bg,
   })
 end
 
@@ -404,6 +423,8 @@ local function bar_open(win, active)
   wo.list = false
   wo.winfixheight = true
   wo.winfixwidth = true
+  -- One column, one colour: see ClowkSidebarPanel.
+  wo.winhighlight = M.winhighlight
 
   bar_render(active)
 end
@@ -790,6 +811,9 @@ local panels = {
 
       vim.api.nvim_win_set_width(search_win, M.width_search)
       vim.wo[search_win].winfixwidth = true
+      -- grug-far opens a real split, so it starts on the editor background.
+      -- The pickers are floats and already carry the panel one.
+      vim.wo[search_win].winhighlight = M.winhighlight
       bar_open(search_win, "search")
       bar_follow(search_win)
     end,
