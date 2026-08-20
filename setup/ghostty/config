@@ -44,6 +44,27 @@ mouse-scroll-multiplier = 2.0
 # an existing Ghostty config. Keep the markers intact.
 
 # >>> clowk-lazyvim keybinds >>>
+# --- The quick terminal: the scratch shell that belongs to no project ---
+#
+# Half of a pair, and the halves are two keys rather than one key with a rule
+# behind it. Ghostty has no conditional config anyway: `performable:` only asks
+# whether the action itself can run, and nothing lets a running program pick.
+# So you pick.
+#
+#   cmd+shift+j        this. ONE surface for the whole app, created once and
+#                      reused, so its cwd freezes at creation and every tab
+#                      reaches the same shell. As a scratch pad that is the
+#                      point, and `global:` answers even when Ghostty is not
+#                      the focused app.
+#   cmd+shift+option+j the terminal of the repo in THIS tab, drawn as a bottom
+#                      panel by tmux. See the keybind further down.
+quick-terminal-position = bottom
+quick-terminal-autohide = false
+quick-terminal-animation-duration = 0.0
+
+keybind = global:cmd+shift+j=toggle_quick_terminal
+
+
 # --- Nerd Font icons, drawn bigger ---
 #
 # The sidebar's activity bar is three icons, and in a Mono Nerd Font they are
@@ -93,18 +114,25 @@ adjust-icon-height = 150%
 # of following the project, and it answers the key from any Ghostty window.
 keybind = super+j=esc:j
 
-# super+shift+j = the same terminal, drawn as a bottom panel.
+# super+alt+shift+j = the terminal of THIS repo, drawn as a bottom panel.
 #
-# Ghostty's own quick terminal is the obvious way to get this shape and cannot
-# do it: `toggle_quick_terminal` takes no command, so nothing can start a
-# per-repo tmux session in it, and its single surface is shared by every tab.
-# So the shape is rebuilt in tmux, where the session name comes from the pane's
-# cwd and is therefore per repo. Geometry lives in ~/.tmux.conf under M-J.
+# The other half of the pair described up at the quick terminal. Ghostty cannot
+# draw this one itself: `toggle_quick_terminal` takes no command, so nothing can
+# start a per-repo tmux session in it, and its single surface is shared by every
+# tab. So the shape is rebuilt in tmux, where the session name comes from the
+# pane's cwd. Geometry lives in ~/.tmux.conf under M-J.
 #
-# Same session as super+j, so the two keys are two shapes of one terminal and
-# either one hides it. Only tabs running tmux answer -- `nvim` starts one (see
-# ~/.zshrc); in a plain shell tab the key does nothing.
-keybind = super+shift+j=esc:J
+# Same session as super+j, so those two are two shapes of one terminal and
+# either hides it. Only tabs running tmux answer -- `nvim` starts one (see
+# ~/.zshrc); in a plain shell tab the key does nothing, and cmd+shift+j is the
+# terminal to reach for there.
+#
+# Bound on BOTH the unicode trigger and the physical key, the same way
+# super+alt+b is bound in this file: holding option makes macOS produce a
+# different character, so the `super+alt+shift+j` trigger alone can miss, while
+# `key_j` matches the physical key whatever it produced.
+keybind = super+alt+shift+j=esc:J
+keybind = super+alt+shift+key_j=esc:J
 # super+w = close buffer
 keybind = super+w=esc:w
 # super+n = new buffer
