@@ -128,6 +128,10 @@ require("config.panels").setup()
 -- three, and why the fourth one is the gap above rather than a line.
 require("config.frame").setup()
 
+-- And the fourth edge of that frame, which needs a window of its own:
+-- lua/config/margin.lua says why a column cannot come from anywhere else.
+require("config.margin").setup()
+
 -- Machine-local overrides, untracked (see .gitignore and the README).
 -- Optional: pcall so a missing file is not an error.
 pcall(require, "config.local")

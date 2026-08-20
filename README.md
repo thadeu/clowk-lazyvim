@@ -455,6 +455,7 @@ decorations Neovim already renders around the text:
 | top | the `tabline` | the lid of every panel at once, with the buffer tabs inside the editor's |
 | left | `statuscolumn` | in front of the line numbers, and the `winbar` on its own row |
 | bottom | `statusline` | lualine, between the two corners |
+| right | a window one column wide | nothing but the border — see below |
 
 Two rows of chrome inside a panel — tabs, then the breadcrumb under them — is one
 row more than a window has: `winbar` is a single line and so is `statusline`.
@@ -470,12 +471,31 @@ column instead of reserving one and looked like the way out, but it only paints
 where a buffer LINE is — past the end of the file it draws nothing, which is
 most of the screen on a start page.
 
-So the right corners are not drawn either. Both rules run to the edge and stop.
-The corner *can* be put there — a winbar and a statusline both reach the last
-column — but nothing can draw the line between them, and a corner with nothing
-hanging off it reads as a box that failed rather than as a frame. The panels that do have a right side keep their corners: the tree, because
-snacks draws it a real border, and the icon bar, because those two columns are
-its own buffer text.
+The one thing that *does* own a column is a window, so the fourth edge is one.
+`lua/config/margin.lua` keeps a window one cell wide on the far right and fills
+its buffer with `│`. The top corner comes from the tabline, the line from that
+buffer, the bottom corner from that window's own statusline.
+
+It is a window that is not yours, and it behaves like one: it turns up in
+`<C-w>` cycling (WinEnter bounces straight back out), `:only` deletes it
+(WinClosed puts it back), and closing the last real window would leave Neovim
+sitting there showing one column of frame — it quits instead, the last window
+being the one thing that cannot be closed, only quit.
+
+Two windows cannot touch, so there is a separator between the panel and its own
+border, and what that column is *painted* with turned out to be the whole
+difference between a frame and a stripe. With the gap's dark background — which
+is right for every other separator in the layout — the border read as something
+stuck to the side of the screen; with the panel's, as a second thin panel
+stranded out there. It is given no background at all instead, along with the
+border column itself, and that column becomes the padding before the edge, which
+is what the left side has had all along. `winhighlight` does it on the window to
+the LEFT, since that is the window that draws the separator, and only for that
+one: every other gap in the layout stays a gap.
+
+The panels that had a right side all along keep theirs: the tree, because snacks
+draws it a real border, and the icon bar, because those two columns are its own
+buffer text.
 
 Three details make the rest cheap:
 
@@ -1066,6 +1086,7 @@ lua/config/
   sidebar.lua                 the activity bar: layout, icon row, panels
   panels.lua                  the dark gap between the panels
   frame.lua                   the rounded box around each panel
+  margin.lua                  the fourth edge: a window one column wide
 lua/plugins/
   git.lua                     inline blame, diffview
   octo.lua                    picker -> snacks

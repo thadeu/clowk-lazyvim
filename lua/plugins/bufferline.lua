@@ -162,21 +162,27 @@ return {
       end,
 
       right = function()
+        local out = {}
         local width, title = require("config.frame").right_panel()
 
-        if not width then
-          return {}
+        if width then
+          -- The gap column belongs to the layout, not to the panel, so it is
+          -- drawn here but kept OUT of the panel's own width.
+          local lead = "╭─ " .. title .. " "
+          local fill = math.max(width - vim.fn.strdisplaywidth(lead), 0)
+
+          out[#out + 1] = { text = " ", link = "ClowkLidGap" }
+          out[#out + 1] = { text = lead .. ("─"):rep(fill), link = "ClowkLidEditor" }
         end
 
-        -- The gap column belongs to the layout, not to the panel, so it is
-        -- drawn here but kept OUT of the panel's own width.
-        local lead = "╭─ " .. title .. " "
-        local fill = math.max(width - vim.fn.strdisplaywidth(lead), 0)
+        -- The last two cells of the screen when the right border is up: the
+        -- gap, and the corner over the column that border occupies.
+        if require("config.margin").win() then
+          out[#out + 1] = { text = " ", link = "ClowkLidGap" }
+          out[#out + 1] = { text = "╮", link = "ClowkMargin" }
+        end
 
-        return {
-          { text = " ", link = "ClowkLidGap" },
-          { text = lead .. ("─"):rep(fill), link = "ClowkLidEditor" },
-        }
+        return out
       end,
     }
 

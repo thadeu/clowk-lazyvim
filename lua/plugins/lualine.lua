@@ -134,6 +134,27 @@ return {
         inactive_sections = edge_open,
       })
 
+      -- The right border is a window one column wide, so its statusline is one
+      -- cell: the corner where the border meets the bottom edge.
+      local corner_br = {
+        lualine_a = {
+          {
+            function()
+              return "╯"
+            end,
+            color = "ClowkMargin",
+            padding = 0,
+            separator = { left = "", right = "" },
+          },
+        },
+      }
+
+      table.insert(opts.extensions, {
+        filetypes = { require("config.margin").filetype },
+        sections = corner_br,
+        inactive_sections = corner_br,
+      })
+
       -- LazyVim turns the statusline off on the start screen. With one per
       -- window that is not a clean line any more, it is a panel with no bottom
       -- edge -- and the row is spoken for either way.
